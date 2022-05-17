@@ -1,5 +1,10 @@
+// RTC handling taken from https://github.com/nopnop2002/esp-idf-ds3231
+// Repo claims code was forked from:
+// https://github.com/UncleRus/esp-idf-lib/tree/master/components/ds3231
+
 #include "application.h"
 
+#include "ds3231.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -13,7 +18,7 @@
 #include <esp_log.h>
 static const char* TAG = "Application";
 
-static const gpio_num_t SECTION_ONE = (gpio_num_t)21;
+static const gpio_num_t SECTION_ONE = (gpio_num_t)17;
 static const gpio_num_t SECTION_TWO = (gpio_num_t)19;
 static const gpio_num_t SECTION_THREE = (gpio_num_t)18;
 static const gpio_num_t SECTION_FOUR = (gpio_num_t)5;
@@ -55,7 +60,7 @@ void setup_gpio() {
 static const adc2_channel_t MOISTURE_CHANNEL = ADC2_CHANNEL_3;
 static const int AIR_DRY = 2590;
 static const int SOAKED_SOIL = 1200;
-// 1457
+
 void setup_adc() {
     // ADC2 config
     ESP_ERROR_CHECK(adc2_config_channel_atten(MOISTURE_CHANNEL, ADC_ATTEN_DB_11));
@@ -87,12 +92,61 @@ void read_moisture() {
     ESP_LOGI(TAG, "raw  data: %d, moisture %f%%", adc_raw, calc_moisture(adc_raw));
 }
 
+static const gpio_num_t RTC_SDA = (gpio_num_t)21;
+static const gpio_num_t RTC_SCL = (gpio_num_t)22;
+
+void get_clock(void* pvParameters) {
+    // Initialize RTC
+    i2c_dev_t dev;
+    if (ds3231_init_desc(&dev, I2C_NUM_0, RTC_SDA, RTC_SCL) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not init device descriptor.");
+        while (1) {
+            vTaskDelay(1);
+        }
+    }
+
+    // Initialise the xLastWakeTime variable with the current time.
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    // Get RTC date and time
+    while (1) {
+        float temp;
+        struct tm rtcinfo;
+
+        if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
+            ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
+            while (1) {
+                vTaskDelay(1);
+            }
+        }
+
+        if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
+            ESP_LOGE(pcTaskGetName(0), "Could not get time.");
+            while (1) {
+                vTaskDelay(1);
+            }
+        }
+
+        ESP_LOGI(pcTaskGetName(0),
+                 "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel",
+                 rtcinfo.tm_year,
+                 rtcinfo.tm_mon + 1,
+                 rtcinfo.tm_mday,
+                 rtcinfo.tm_hour,
+                 rtcinfo.tm_min,
+                 rtcinfo.tm_sec,
+                 temp);
+        vTaskDelayUntil(&xLastWakeTime, 1000);
+    }
+}
 void StartApplication() {
     ESP_LOGI(TAG, "Hello from cpp world");
 
     setup_gpio();
 
     setup_adc();
+
+    xTaskCreate(get_clock, "get_clock", 1024 * 4, NULL, 2, NULL);
 
     read_moisture();
 
