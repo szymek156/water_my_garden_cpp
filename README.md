@@ -11,7 +11,7 @@ https://deepbluembedded.com/esp32-adc-tutorial-read-analog-voltage-arduino/
 
 [ x ] Connect moisture sensor and make it work
 
-[ ] Connect RTC and make it work
+[ x ] Connect RTC and make it work
 
 [ ] RTC: sync time
 

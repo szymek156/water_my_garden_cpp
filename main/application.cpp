@@ -18,10 +18,10 @@
 #include <esp_log.h>
 static const char* TAG = "Application";
 
-static const gpio_num_t SECTION_ONE = (gpio_num_t)17;
-static const gpio_num_t SECTION_TWO = (gpio_num_t)19;
-static const gpio_num_t SECTION_THREE = (gpio_num_t)18;
-static const gpio_num_t SECTION_FOUR = (gpio_num_t)5;
+static const gpio_num_t SECTION_ONE = (gpio_num_t)12;
+static const gpio_num_t SECTION_TWO = (gpio_num_t)14;
+static const gpio_num_t SECTION_THREE = (gpio_num_t)27;
+static const gpio_num_t SECTION_FOUR = (gpio_num_t)26;
 
 // TODO: add pulldown resistor?
 static const int TURN_ON = 0;
@@ -35,7 +35,7 @@ void setup_gpio() {
     // set as output mode
     io_conf.mode = GPIO_MODE_OUTPUT;
     // bit mask of the pins that you want to set,e.g.GPIO18/19
-    io_conf.pin_bit_mask = GPIO_SEL_21;
+    io_conf.pin_bit_mask = GPIO_SEL_12;
     // disable pull-down mode
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     // disable pull-up mode
@@ -44,15 +44,15 @@ void setup_gpio() {
     gpio_config(&io_conf);
     gpio_set_level(SECTION_ONE, TURN_OFF);
 
-    io_conf.pin_bit_mask = GPIO_SEL_19;
+    io_conf.pin_bit_mask = GPIO_SEL_14;
     gpio_config(&io_conf);
     gpio_set_level(SECTION_TWO, TURN_OFF);
 
-    io_conf.pin_bit_mask = GPIO_SEL_18;
+    io_conf.pin_bit_mask = GPIO_SEL_27;
     gpio_config(&io_conf);
     gpio_set_level(SECTION_THREE, TURN_OFF);
 
-    io_conf.pin_bit_mask = GPIO_SEL_5;
+    io_conf.pin_bit_mask = GPIO_SEL_26;
     gpio_config(&io_conf);
     gpio_set_level(SECTION_FOUR, TURN_OFF);
 }
@@ -148,16 +148,16 @@ void StartApplication() {
 
     xTaskCreate(get_clock, "get_clock", 1024 * 4, NULL, 2, NULL);
 
-    read_moisture();
+    // read_moisture();
 
     gpio_num_t arr[4] = {SECTION_ONE, SECTION_TWO, SECTION_THREE, SECTION_FOUR};
 
     for (int i = 0;; i++) {
-        // gpio_set_level(arr[i % 4], TURN_ON);
+        gpio_set_level(arr[i % 4], TURN_ON);
 
-        read_moisture();
+        // read_moisture();
         vTaskDelay(pdMS_TO_TICKS(2000));
 
-        // gpio_set_level(arr[i % 4], TURN_OFF);
+        gpio_set_level(arr[i % 4], TURN_OFF);
     }
 }
