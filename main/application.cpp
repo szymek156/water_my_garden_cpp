@@ -7,6 +7,7 @@
 #include "ds3231.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "moisture_service.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -57,44 +58,45 @@ void setup_gpio() {
     gpio_set_level(SECTION_FOUR, TURN_OFF);
 }
 
-static const adc1_channel_t MOISTURE_CHANNEL = ADC_CHANNEL_4; //GPIO32
-static const int AIR_DRY = 2590;
-static const int SOAKED_SOIL = 1200;
+// static const adc2_channel_t MOISTURE_CHANNEL = ADC_CHANNEL_4; //GPIO32
+// static const int AIR_DRY = 2590;
+// static const int SOAKED_SOIL = 1200;
 
-void setup_adc() {
-    // ADC2 config
-    ESP_ERROR_CHECK(adc1_config_channel_atten(MOISTURE_CHANNEL, ADC_ATTEN_DB_11));
-}
+// void setup_adc() {
+//     // ADC2 config
+//     ESP_ERROR_CHECK(adc1_config_channel_atten(MOISTURE_CHANNEL, ADC_ATTEN_DB_11));
+// }
 
-float calc_moisture(int adc_raw) {
-    if (adc_raw < SOAKED_SOIL * 0.8f || adc_raw > AIR_DRY * 1.2f) {
-        return nanf("");
-    }
+// float calc_moisture(int adc_raw) {
+//     if (adc_raw < SOAKED_SOIL * 0.8f || adc_raw > AIR_DRY * 1.2f) {
+//         return nanf("");
+//     }
 
-    float denominator = (AIR_DRY - SOAKED_SOIL);
-    float res = (adc_raw - SOAKED_SOIL) / denominator;
+//     float denominator = (AIR_DRY - SOAKED_SOIL);
+//     float res = (adc_raw - SOAKED_SOIL) / denominator;
 
-    // consider readings outside the range, but reasonable skewed as valid
-    res = 1.0f - std::max(std::min(res, 1.0f), 0.0f);
+//     // consider readings outside the range, but reasonable skewed as valid
+//     res = 1.0f - std::max(std::min(res, 1.0f), 0.0f);
 
-    return res;
-}
+//     return res;
+// }
 
-void read_moisture(void* pvParameters) {
-    while (1) {
-        esp_err_t ret = ESP_OK;
-        static int adc_raw;
+// void read_moisture(void* pvParameters) {
+//     while (1) {
+//         esp_err_t ret = ESP_OK;
+//         static int adc_raw;
 
-        do {
-            ret = adc1_get_raw(MOISTURE_CHANNEL, (adc_bits_width_t)ADC_WIDTH_BIT_DEFAULT, &adc_raw);
-        } while (ret == ESP_ERR_INVALID_STATE);
-        ESP_ERROR_CHECK(ret);
+//         do {
+//             ret = adc1_get_raw(MOISTURE_CHANNEL, (adc_bits_width_t)ADC_WIDTH_BIT_DEFAULT,
+//             &adc_raw);
+//         } while (ret == ESP_ERR_INVALID_STATE);
+//         ESP_ERROR_CHECK(ret);
 
-        ESP_LOGI(TAG, "raw  data: %d, moisture %f%%", adc_raw, calc_moisture(adc_raw));
+//         ESP_LOGI(TAG, "raw  data: %d, moisture %f%%", adc_raw, calc_moisture(adc_raw));
 
-        vTaskDelay(pdMS_TO_TICKS(2000));
-    }
-}
+//         vTaskDelay(pdMS_TO_TICKS(2000));
+//     }
+// }
 
 static const gpio_num_t RTC_SDA = (gpio_num_t)21;
 static const gpio_num_t RTC_SCL = (gpio_num_t)22;
@@ -143,16 +145,26 @@ void get_clock(void* pvParameters) {
         vTaskDelayUntil(&xLastWakeTime, 1000);
     }
 }
+
+void moisture_service(void* param) {
+    Moisture* moisture = (Moisture*)param;
+
+    moisture->run_service();
+}
+
 void StartApplication() {
     ESP_LOGI(TAG, "Hello from cpp world");
 
     setup_gpio();
 
-    setup_adc();
+    // setup_adc();
 
     xTaskCreate(get_clock, "get_clock", 1024 * 4, NULL, 2, NULL);
 
-    xTaskCreate(read_moisture, "read_moisture", 1024 * 4, NULL, 2, NULL);
+    Moisture moisture;
+    xTaskCreate(moisture_service, "moisture", 1024 * 4, &moisture, 2, NULL);
+
+    // xTaskCreate(read_moisture, "read_moisture", 1024 * 4, NULL, 2, NULL);
 
     // read_moisture();
 
