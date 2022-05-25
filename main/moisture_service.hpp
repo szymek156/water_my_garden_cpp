@@ -3,6 +3,14 @@
 
 #include <driver/adc.h>
 #include <esp_adc_cal.h>
+#include "freertos/FreeRTOS.h"
+#include <freertos/queue.h>
+
+struct MoistureMessage {
+    float moisture;
+    int channel;
+
+};
 
 class Moisture {
  public:
@@ -32,4 +40,6 @@ class Moisture {
     esp_adc_cal_characteristics_t *_adc_chars;
     adc_bits_width_t width_;
     adc_atten_t atten_;
+
+    QueueHandle_t queue_;
 };

@@ -6,7 +6,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
+#define LOG_LOCAL_LEVEL ESP_LOG_WARN
 #include <esp_log.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +27,11 @@ static void print_char_val_type(esp_adc_cal_value_t val_type) {
 Moisture::Moisture()
     : _adc_chars((esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t))),
       width_(ADC_WIDTH_BIT_12),
-      atten_(ADC_ATTEN_DB_11) {
+      atten_(ADC_ATTEN_DB_11),
+      queue_(nullptr) {
+
+    queue_ = xQueueCreate(1, sizeof(MoistureMessage));
+    configASSERT(queue_);
 }
 
 void Moisture::run_service() {
@@ -49,7 +53,16 @@ void Moisture::run_service() {
             ESP_LOGD(
                 TAG, "Channel %d raw: %d\tVoltage: %dmV\n", channel, reading.raw, reading.voltage);
 
-            ESP_LOGI(TAG, "Channel %d moisture %f%%\n", channel, calc_moisture(reading.raw));
+
+            float moisture = calc_moisture(reading.raw);
+
+            ESP_LOGI(TAG, "Channel %d moisture %f%%\n", channel, moisture);
+
+            MoistureMessage data = MoistureMessage {.moisture = moisture, .channel = channel};
+            if (xQueueOverwrite(queue_, &data) != pdPASS) {
+                ESP_LOGE(TAG, "Failed to send data");
+            }
+
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }

@@ -7,6 +7,41 @@
 
 #include "i2cdev.h"
 
+/**
+ * Alarms
+ */
+typedef enum {
+    DS3231_ALARM_NONE = 0,//!< No alarms
+    DS3231_ALARM_1,       //!< First alarm
+    DS3231_ALARM_2,       //!< Second alarm
+    DS3231_ALARM_BOTH     //!< Both alarms
+} ds3231_alarm_t;
+
+/**
+ * First alarm rate
+ */
+typedef enum {
+    DS3231_ALARM1_EVERY_SECOND = 0,
+    DS3231_ALARM1_MATCH_SEC,
+    DS3231_ALARM1_MATCH_SECMIN,
+    DS3231_ALARM1_MATCH_SECMINHOUR,
+    DS3231_ALARM1_MATCH_SECMINHOURDAY,
+    DS3231_ALARM1_MATCH_SECMINHOURDATE
+} ds3231_alarm1_rate_t;
+
+/**
+ * Second alarm rate
+ */
+typedef enum {
+    DS3231_ALARM2_EVERY_MIN = 0,
+    DS3231_ALARM2_MATCH_MIN,
+    DS3231_ALARM2_MATCH_MINHOUR,
+    DS3231_ALARM2_MATCH_MINHOURDAY,
+    DS3231_ALARM2_MATCH_MINHOURDATE
+} ds3231_alarm2_rate_t;
+
+
+
 #define DS3231_ADDR 0x68 //!< I2C address
 
 #define DS3231_STAT_OSCILLATOR 0x80
@@ -47,5 +82,13 @@ esp_err_t ds3231_get_raw_temp(i2c_dev_t *dev, int16_t *temp);
 esp_err_t ds3231_get_temp_integer(i2c_dev_t *dev, int8_t *temp);
 esp_err_t ds3231_get_temp_float(i2c_dev_t *dev, float *temp);
 esp_err_t ds3231_get_time(i2c_dev_t *dev, struct tm *time);
+
+esp_err_t ds3231_set_alarm(i2c_dev_t *dev, ds3231_alarm_t alarms, struct tm *time1,
+        ds3231_alarm1_rate_t option1, struct tm *time2, ds3231_alarm2_rate_t option2);
+esp_err_t ds3231_get_alarm_flags(i2c_dev_t *dev, ds3231_alarm_t *alarms);
+esp_err_t ds3231_clear_alarm_flags(i2c_dev_t *dev, ds3231_alarm_t alarms);
+esp_err_t ds3231_enable_alarm_ints(i2c_dev_t *dev, ds3231_alarm_t alarms);
+esp_err_t ds3231_disable_alarm_ints(i2c_dev_t *dev, ds3231_alarm_t alarms);
+
 #endif /* MAIN_DS3231_H_ */
 
