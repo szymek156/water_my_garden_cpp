@@ -1,8 +1,10 @@
 #pragma once
 #include <driver/gpio.h>
-
+#include "socket.hpp"
 class Watering {
  public:
+    Watering(Socket<Message>::SockPtr sock);
+
     void run_service();
 
  private:
@@ -18,4 +20,7 @@ class Watering {
     void say_hello();
 
     void setup_gpio();
+
+    Socket<Message>::SockPtr sock_;
+
 };

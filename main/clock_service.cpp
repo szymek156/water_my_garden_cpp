@@ -10,6 +10,9 @@ static const gpio_num_t RTC_SDA = (gpio_num_t)21;
 static const gpio_num_t RTC_SCL = (gpio_num_t)22;
 static const gpio_num_t INT_PIN = (gpio_num_t)23;
 
+Clock::Clock(Socket<Message>::SockPtr sock) : sock_(std::move(sock)) {
+}
+
 void Clock::run_service() {
     ESP_LOGI(TAG, "Starting service");
 
@@ -25,32 +28,32 @@ void Clock::run_service() {
     }
 
     while (1) {
-        float temp;
-        struct tm rtcinfo;
+        // float temp;
+        // struct tm rtcinfo;
 
-        if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
-            ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
-            while (1) {
-                vTaskDelay(1);
-            }
-        }
+        // if (ds3231_get_temp_float(&dev, &temp) != ESP_OK) {
+        //     ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
+        //     while (1) {
+        //         vTaskDelay(1);
+        //     }
+        // }
 
-        if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
-            ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-            while (1) {
-                vTaskDelay(1);
-            }
-        }
+        // if (ds3231_get_time(&dev, &rtcinfo) != ESP_OK) {
+        //     ESP_LOGE(pcTaskGetName(0), "Could not get time.");
+        //     while (1) {
+        //         vTaskDelay(1);
+        //     }
+        // }
 
-        ESP_LOGI(pcTaskGetName(0),
-                 "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel",
-                 rtcinfo.tm_year,
-                 rtcinfo.tm_mon + 1,
-                 rtcinfo.tm_mday,
-                 rtcinfo.tm_hour,
-                 rtcinfo.tm_min,
-                 rtcinfo.tm_sec,
-                 temp);
+        // ESP_LOGI(pcTaskGetName(0),
+        //          "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel",
+        //          rtcinfo.tm_year,
+        //          rtcinfo.tm_mon + 1,
+        //          rtcinfo.tm_mday,
+        //          rtcinfo.tm_hour,
+        //          rtcinfo.tm_min,
+        //          rtcinfo.tm_sec,
+        //          temp);
 
         if (ulTaskNotifyTake(true, pdMS_TO_TICKS(1000))) {
             ESP_LOGI(TAG, "interrupt arrived %d", ret);
@@ -60,10 +63,22 @@ void Clock::run_service() {
             ESP_LOGI(TAG, "alarm elapsed 0x%02x", alarms);
 
             // TODO: handle
+
+            sock_->send(Message{.type = Message::Type::StartWatering, {}});
             // Clearing alarm puts INT pin back to high
             ds3231_clear_alarm_flags(&dev, alarms);
-        }
 
+            if (auto res = sock_->rcv(-1)) {
+                switch ((*res).type) {
+                    case Message::Type::SetAlarm:
+                        ESP_LOGI(TAG, "Set the alarm! %d", (*res).alarm_tm.tm_hour);
+
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
     }
 }
 
@@ -99,8 +114,6 @@ esp_err_t Clock::init_rtc() {
     // Initialize i2c device
     ESP_GOTO_ON_ERROR(
         ds3231_init_desc(&dev, I2C_NUM_0, RTC_SDA, RTC_SCL), err, TAG, "Failed to init!");
-
-    ESP_LOGI(TAG, "task handle %p", task_handle);
 
     ESP_GOTO_ON_ERROR(
         ds3231_clear_alarm_flags(&dev, DS3231_ALARM_BOTH), err, TAG, "Failed to clear flags");

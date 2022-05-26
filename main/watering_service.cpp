@@ -1,10 +1,13 @@
 #include "watering_service.hpp"
 
+#include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <esp_log.h>
 
 static const char* TAG = "Watering";
+
+Watering::Watering(Socket<Message>::SockPtr sock) : sock_(std::move(sock)) {
+}
 
 void Watering::run_service() {
     ESP_LOGI(TAG, "Service started");
@@ -13,6 +16,23 @@ void Watering::run_service() {
     say_hello();
 
     while (1) {
+        // if (xQueueReceive(keypad_q_, &keypad_data, TIMEOUT) == pdPASS) {
+        //     ESP_LOGV(TAG, "Got Keypad event");
+        //     notifyKeypad(keypad_data);
+        // }
+
+        if (auto res = sock_->rcv(-1)) {
+            switch ((*res).type) {
+                case Message::Type::StartWatering:
+                    ESP_LOGI(TAG, "Starting watering!");
+
+                    sock_->send(Message{.type = Message::Type::SetAlarm, {.alarm_tm = {}}});
+                    break;
+
+                default:
+                    break;
+            }
+        }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
