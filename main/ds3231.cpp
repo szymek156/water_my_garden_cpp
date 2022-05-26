@@ -1,3 +1,7 @@
+// RTC handling taken from https://github.com/nopnop2002/esp-idf-ds3231
+// Repo claims code was forked from:
+// https://github.com/UncleRus/esp-idf-lib/tree/master/components/ds3231
+
 #include <string.h>
 #include <time.h>
 

@@ -27,6 +27,7 @@ https://deepbluembedded.com/esp32-adc-tutorial-read-analog-voltage-arduino/
 
 [ ] Start webserver to control
 
+[ ] avoid reset loop in case of any failure
 # moisture sensor
 https://www.sigmaelectronica.net/wp-content/uploads/2018/04/sen0193-humedad-de-suelos.pdf
 

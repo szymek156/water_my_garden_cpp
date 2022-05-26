@@ -1,7 +1,3 @@
-// RTC handling taken from https://github.com/nopnop2002/esp-idf-ds3231
-// Repo claims code was forked from:
-// https://github.com/UncleRus/esp-idf-lib/tree/master/components/ds3231
-
 #include "application.h"
 
 #include "ds3231.h"
@@ -9,6 +5,7 @@
 #include "freertos/task.h"
 #include "moisture_service.hpp"
 #include "watering_service.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -30,7 +27,6 @@ void get_clock(void* pvParameters) {
         }
     }
 
-
     ds3231_clear_alarm_flags(&dev, DS3231_ALARM_BOTH);
     struct tm alarm_time;
     // 21:53
@@ -38,7 +34,12 @@ void get_clock(void* pvParameters) {
     alarm_time.tm_min = 02;
     alarm_time.tm_sec = 40;
 
-    ds3231_set_alarm(&dev, DS3231_ALARM_BOTH, &alarm_time, DS3231_ALARM1_MATCH_SECMINHOUR, &alarm_time, DS3231_ALARM2_MATCH_MINHOUR);
+    ds3231_set_alarm(&dev,
+                     DS3231_ALARM_BOTH,
+                     &alarm_time,
+                     DS3231_ALARM1_MATCH_SECMINHOUR,
+                     &alarm_time,
+                     DS3231_ALARM2_MATCH_MINHOUR);
 
     // Initialise the xLastWakeTime variable with the current time.
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -89,7 +90,6 @@ void service(void* param) {
 
 void StartApplication() {
     ESP_LOGI(TAG, "#### WATER MY GARDEN ####");
-
 
     xTaskCreate(get_clock, "get_clock", 1024 * 4, NULL, 2, NULL);
 
