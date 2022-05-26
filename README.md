@@ -18,11 +18,11 @@ https://deepbluembedded.com/esp32-adc-tutorial-read-analog-voltage-arduino/
 
 [ ] RTC: sync time
 
-[ ] RTC: use interrupt to wakeup schedule
+[ x ] RTC: use interrupt to wakeup schedule
 
 [ ] add schedule
 
-[ ] Convert 12V AC to 5V DC
+[ x ] Convert 12V AC to 5V DC
 
 [ ] Assemble in the case
 

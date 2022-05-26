@@ -1,5 +1,5 @@
 #pragma once
-#include <driver/i2c.h>
+#include <i2cdev.h>
 
 class Clock {
  public:

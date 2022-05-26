@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "moisture_service.hpp"
 #include "watering_service.hpp"
+#include "clock_service.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -91,7 +92,10 @@ void service(void* param) {
 void StartApplication() {
     ESP_LOGI(TAG, "#### WATER MY GARDEN ####");
 
-    xTaskCreate(get_clock, "get_clock", 1024 * 4, NULL, 2, NULL);
+    // xTaskCreate(get_clock, "get_clock", 1024 * 4, NULL, 2, NULL);
+
+    Clock clock;
+    xTaskCreate(service<Clock>, "clock", 1024 * 4, &clock, 2, NULL);
 
     Moisture moisture;
     xTaskCreate(service<Moisture>, "moisture", 1024 * 4, &moisture, 2, NULL);
