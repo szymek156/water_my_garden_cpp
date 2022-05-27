@@ -1,5 +1,7 @@
 #include "watering_service.hpp"
 
+#include <cmath>
+
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -7,7 +9,9 @@
 static const char* TAG = "Watering";
 
 Watering::Watering(SockPtr clock, SockPtr moisture)
-    : clock_(std::move(clock)),
+    : current_state_(Idle),
+      current_section_(0),
+      clock_(std::move(clock)),
       moisture_(std::move(moisture)) {
     xQueueAddToSet(clock_->get_rx(), queues_);
     xQueueAddToSet(moisture_->get_rx(), queues_);
@@ -27,43 +31,92 @@ void Watering::run_service() {
     set_the_alarm(alarm_tm);
 
     while (1) {
-        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(1000));
-
-        if (active_member == nullptr) {
-    static int s = 0;
-            moisture_->send(Message{.type = Message::Type::MoistureReq, {.section = s++ % 4}});
-        }
+        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(-1));
 
         if (active_member == moisture_->get_rx()) {
             if (auto data = moisture_->rcv(0)) {
                 auto msg = *data;
-                switch (msg.type) {
-                    case Message::Type::MoistureRes:
-                        ESP_LOGI(TAG,
-                                 "Got moisture res for channel %u, moisture %f",
-                                 msg.section_r,
-                                 msg.moisture);
-                        break;
 
-                    default:
-                        break;
-                }
+                update_state(msg);
             }
         }
 
         if (active_member == clock_->get_rx()) {
             if (auto data = clock_->rcv(0)) {
                 auto msg = *data;
-                switch (msg.type) {
-                    case Message::Type::StartWatering:
-                        ESP_LOGI(TAG, "Got watering request!");
-                        break;
 
-                    default:
-                        break;
-                }
+                update_state(msg);
             }
         }
+    }
+}
+
+// TODO: that could be a state machine if becomes too complex
+void Watering::update_state(const Message& msg) {
+    while (1) {
+        switch (current_state_) {
+            case Idle: {
+                auto new_state = handle_idle(msg);
+                if (new_state != current_state_) {
+                    current_state_ = new_state;
+                    continue;
+                }
+                return;
+            }
+
+            case WateringSection: {
+                current_state_ = handle_watering(msg);
+                return;
+            }
+
+            default:
+                return;
+        }
+    }
+}
+
+Watering::CurrentState Watering::handle_idle(const Message& msg) {
+    switch (msg.type) {
+        case Message::Type::StartWatering:
+            ESP_LOGI(TAG, "Starting watering procedure!");
+            return WateringSection;
+
+        default:
+            ESP_LOGE(TAG, "Unexpected msg %d in idle state!", (int)msg.type);
+            return current_state_;
+    }
+}
+
+Watering::CurrentState Watering::handle_watering(const Message& msg) {
+    switch (msg.type) {
+        case Message::Type::StartWatering: {
+            // Firstly check if section requires watering
+            auto req = Message{};
+            req.type = Message::Type::MoistureReq;
+            req.section = current_section_;
+
+            moisture_->send(req);
+
+            // arm timer
+            return current_state_;
+        }
+        case Message::Type::MoistureRes:
+            ESP_LOGI(
+                TAG, "Got moisture res for channel %u, moisture %f", msg.section_r, msg.moisture);
+
+            // TODO: define threshold
+            if (msg.moisture > 0.9 || msg.moisture == nanf("")) {
+                // Feels wet enough, or there is no reading
+
+                current_section_++;
+            }
+
+            // Reschedule next measurement
+            return current_state_;
+
+        default:
+            ESP_LOGE(TAG, "Unexpected msg %d in watering state!", (int)msg.type);
+            return current_state_;
     }
 }
 

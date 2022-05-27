@@ -22,8 +22,17 @@ class Watering : public ServiceBase {
 
     void setup_gpio();
 
-    void set_the_alarm(const struct tm &alarm_tm);
+    void update_state(const Message& msg);
 
+    void set_the_alarm(const struct tm& alarm_tm);
+
+    enum CurrentState { Idle, WateringSection };
+
+    CurrentState handle_idle(const Message& msg);
+    CurrentState handle_watering(const Message& msg);
+
+    CurrentState current_state_;
+    int current_section_;
     SockPtr clock_;
     SockPtr moisture_;
 };

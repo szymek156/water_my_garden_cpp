@@ -56,11 +56,11 @@ void Moisture::run_service() {
                 case Message::Type::MoistureReq: {
                     ESP_LOGD(TAG, "Got moisture req for channel %d", msg.section);
 
-                    if (msg.section >= CHANNELS_SIZE) {
-                        break;
+                    ChannelReading reading = {};
+                    if (msg.section < CHANNELS_SIZE) {
+                        reading = read_channel(CHANNELS[msg.section]);
                     }
 
-                    auto reading = read_channel(CHANNELS[msg.section]);
                     float moisture = calc_moisture(reading.raw);
 
                     ESP_LOGD(TAG,
