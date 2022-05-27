@@ -6,7 +6,7 @@
 
 static const char* TAG = "Watering";
 
-Watering::Watering(Socket<Message>::SockPtr sock) : sock_(std::move(sock)) {
+Watering::Watering() {
 }
 
 void Watering::run_service() {
@@ -21,18 +21,18 @@ void Watering::run_service() {
         //     notifyKeypad(keypad_data);
         // }
 
-        if (auto res = sock_->rcv(-1)) {
-            switch ((*res).type) {
-                case Message::Type::StartWatering:
-                    ESP_LOGI(TAG, "Starting watering!");
+        // if (auto res = sock_->rcv(-1)) {
+        //     switch ((*res).type) {
+        //         case Message::Type::StartWatering:
+        //             ESP_LOGI(TAG, "Starting watering!");
 
-                    sock_->send(Message{.type = Message::Type::SetAlarm, {.alarm_tm = {}}});
-                    break;
+        //             sock_->send(Message{.type = Message::Type::SetAlarm, {.alarm_tm = {}}});
+        //             break;
 
-                default:
-                    break;
-            }
-        }
+        //         default:
+        //             break;
+        //     }
+        // }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

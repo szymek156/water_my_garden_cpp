@@ -2,6 +2,8 @@
 
 #include "ds3231.h"
 
+#include <algorithm>
+
 #include <esp_check.h>
 #include <esp_log.h>
 
@@ -10,8 +12,18 @@ static const gpio_num_t RTC_SDA = (gpio_num_t)21;
 static const gpio_num_t RTC_SCL = (gpio_num_t)22;
 static const gpio_num_t INT_PIN = (gpio_num_t)23;
 
-Clock::Clock(Socket<Message>::SockPtr sock) : sock_(std::move(sock)) {
+Clock::Clock() : queues_(xQueueCreateSet(10)) {
 }
+
+// This implementation went way too far
+struct Visitor {
+    template <typename T>
+    bool operator()(const std::unique_ptr<Socket<T>>& el) {
+        return el->get_rx() == member_;
+    }
+
+    QueueSetMemberHandle_t member_;
+};
 
 void Clock::run_service() {
     ESP_LOGI(TAG, "Starting service");
@@ -28,6 +40,21 @@ void Clock::run_service() {
     }
 
     while (1) {
+        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(1000));
+
+        auto found = std::find_if(connections_.cbegin(), connections_.cend(), [&](const auto& vt) {
+            return std::visit(Visitor{.member_ = active_member}, vt.second);
+        });
+
+        switch ((*found).first) {
+            case IndexOf<WateringMessage>(): {
+
+                auto &sock = std::get<Socket<WateringMessage>::SockPtr>((*found).second);
+                if (auto msg = sock->rcv(0)) {
+
+                }
+            }
+        }
         // float temp;
         // struct tm rtcinfo;
 
@@ -64,20 +91,8 @@ void Clock::run_service() {
 
             // TODO: handle
 
-            sock_->send(Message{.type = Message::Type::StartWatering, {}});
             // Clearing alarm puts INT pin back to high
             ds3231_clear_alarm_flags(&dev, alarms);
-
-            if (auto res = sock_->rcv(-1)) {
-                switch ((*res).type) {
-                    case Message::Type::SetAlarm:
-                        ESP_LOGI(TAG, "Set the alarm! %d", (*res).alarm_tm.tm_hour);
-
-                        break;
-                    default:
-                        break;
-                }
-            }
         }
     }
 }

@@ -3,17 +3,21 @@
 #include <memory>
 #include <optional>
 #include <utility>
-
+#include <variant>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+enum class Messages {
+    Watering
+};
+
+
 // TODO: find better place
-struct Message {
+struct WateringMessage {
     enum class Type {
         StartWatering,
         SetAlarm,
-
     } type;
 
     union {
@@ -26,6 +30,7 @@ struct Message {
         };
     };
 };
+
 
 /// 1-1 bidirectional communication
 template <typename T>
@@ -68,6 +73,10 @@ class Socket {
         }
     }
 
+    QueueHandle_t get_rx() {
+        return rx_;
+    }
+
  private:
     static constexpr const char *TAG = "Socket";
     bool connected_;
@@ -82,3 +91,28 @@ class Socket {
     Socket(const Socket &) = delete;
     Socket operator=(const Socket &) = delete;
 };
+
+// poor's man std::type_index without rtti
+using TypeIndex = int;
+
+// Declare template function, but do not define it's generic form
+// In case of usage with unsupported type, like : IndexOf<std::string>
+// you will get meaningful (as of c++ standards) compiler message:
+// error: 'constexpr TypeIndex IndexOf() [with T = std::__cxx11::basic_string<char>; TypeIndex = int]' used before its definition
+template<typename T>
+constexpr TypeIndex IndexOf();
+
+template<>
+constexpr int IndexOf<WateringMessage>() {
+    return 1;
+}
+
+template<>
+constexpr int IndexOf<int>() {
+    return 2;
+}
+
+static_assert(IndexOf<WateringMessage>() == 1);
+static_assert(IndexOf<int>() == 2);
+
+
