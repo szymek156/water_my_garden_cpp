@@ -1,7 +1,8 @@
 #pragma once
 #include "service_base.hpp"
+
 #include <driver/gpio.h>
-class Watering : public ServiceBase{
+class Watering : public ServiceBase {
  public:
     Watering(SockPtr clock, SockPtr moisture);
 
@@ -21,7 +22,8 @@ class Watering : public ServiceBase{
 
     void setup_gpio();
 
+    void set_the_alarm(const struct tm &alarm_tm);
+
     SockPtr clock_;
     SockPtr moisture_;
-
 };

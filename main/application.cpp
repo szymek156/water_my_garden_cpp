@@ -57,11 +57,9 @@ void StartApplication() {
 )foo");
 
     auto watering_clock = SockPtr(new Socket(1));
-    auto clock_watering = watering_clock->connect();
-
     auto watering_moisture = SockPtr(new Socket(1));
 
-    Clock clock;
+    Clock clock(watering_clock->connect());
     Moisture moisture(watering_moisture->connect());
     Watering watering(std::move(watering_clock), std::move(watering_moisture));
 

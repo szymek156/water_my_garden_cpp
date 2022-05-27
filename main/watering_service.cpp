@@ -19,14 +19,12 @@ void Watering::run_service() {
     setup_gpio();
     say_hello();
 
+    struct tm alarm_tm = {};
 
-    // auto msg = Message{};
-    // msg.type = Message::Type::SetAlarm;
-    // msg.alarm_tm.tm_hour = 20;
-    // msg.alarm_tm.tm_min = 00;
-    // msg.alarm_tm.tm_sec = 00;
-
-    // clock_->send(msg);
+    alarm_tm.tm_hour = 20;
+    alarm_tm.tm_min = 00;
+    alarm_tm.tm_sec = 00;
+    set_the_alarm(alarm_tm);
 
     while (1) {
         QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(1000));
@@ -53,26 +51,8 @@ void Watering::run_service() {
         }
 
         if (active_member == clock_->get_rx()) {
+            ESP_LOGI(TAG, "Got watering request!");
         }
-
-        // if (xQueueReceive(keypad_q_, &keypad_data, TIMEOUT) == pdPASS) {
-        //     ESP_LOGV(TAG, "Got Keypad event");
-        //     notifyKeypad(keypad_data);
-        // }
-
-        // if (auto res = sock_->rcv(-1)) {
-        //     switch ((*res).type) {
-        //         case Message::Type::StartWatering:
-        //             ESP_LOGI(TAG, "Starting watering!");
-
-        //             sock_->send(Message{.type = Message::Type::SetAlarm, {.alarm_tm = {}}});
-        //             break;
-
-        //         default:
-        //             break;
-        //     }
-        // }
-        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -117,4 +97,12 @@ void Watering::say_hello() {
 
         gpio_set_level(section, TURN_OFF);
     }
+}
+
+void Watering::set_the_alarm(const struct tm &alarm_tm) {
+    auto msg = Message{};
+    msg.type = Message::Type::SetAlarm;
+    msg.alarm_tm = alarm_tm;
+
+    clock_->send(msg);
 }
