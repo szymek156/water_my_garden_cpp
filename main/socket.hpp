@@ -4,14 +4,12 @@
 #include <optional>
 #include <utility>
 #include <variant>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
-enum class Messages {
-    Watering
-};
-
+enum class Messages { Watering };
 
 // TODO: find better place
 struct WateringMessage {
@@ -31,14 +29,36 @@ struct WateringMessage {
     };
 };
 
+class ISocket {
+ public:
+    ISocket() : connected_{false}, rx_{nullptr}, tx_{nullptr} {
+    }
+
+    virtual ~ISocket() = default;
+
+    QueueHandle_t get_rx() {
+        return rx_;
+    }
+
+ protected:
+    static constexpr const char *TAG = "Socket";
+    bool connected_;
+    QueueHandle_t rx_;
+    QueueHandle_t tx_;
+
+    ISocket(const ISocket &) = delete;
+    ISocket operator=(const ISocket &) = delete;
+};
 
 /// 1-1 bidirectional communication
 template <typename T>
-class Socket {
+class Socket : public ISocket {
  public:
     using SockPtr = std::unique_ptr<Socket<T>>;
 
-    Socket(size_t queue_depth) : connected_(false) {
+    Socket(size_t queue_depth) {
+        connected_ = false;
+
         rx_ = xQueueCreate(queue_depth, sizeof(T));
         configASSERT(rx_);
 
@@ -46,7 +66,7 @@ class Socket {
         configASSERT(tx_);
     }
 
-    ~Socket() {
+    virtual ~Socket() {
         vQueueDelete(rx_);
         vQueueDelete(tx_);
     }
@@ -73,23 +93,15 @@ class Socket {
         }
     }
 
-    QueueHandle_t get_rx() {
-        return rx_;
-    }
-
  private:
-    static constexpr const char *TAG = "Socket";
-    bool connected_;
-    QueueHandle_t rx_;
-    QueueHandle_t tx_;
+    Socket(QueueHandle_t rx, QueueHandle_t tx) {
+        connected_ = true;
+        rx_ = rx;
+        tx_ = tx;
 
-    Socket(QueueHandle_t rx, QueueHandle_t tx) : connected_(true), rx_(rx), tx_(tx) {
         configASSERT(tx_);
         configASSERT(rx_);
     }
-
-    Socket(const Socket &) = delete;
-    Socket operator=(const Socket &) = delete;
 };
 
 // poor's man std::type_index without rtti
@@ -98,21 +110,20 @@ using TypeIndex = int;
 // Declare template function, but do not define it's generic form
 // In case of usage with unsupported type, like : IndexOf<std::string>
 // you will get meaningful (as of c++ standards) compiler message:
-// error: 'constexpr TypeIndex IndexOf() [with T = std::__cxx11::basic_string<char>; TypeIndex = int]' used before its definition
-template<typename T>
+// error: 'constexpr TypeIndex IndexOf() [with T = std::__cxx11::basic_string<char>; TypeIndex =
+// int]' used before its definition
+template <typename T>
 constexpr TypeIndex IndexOf();
 
-template<>
+template <>
 constexpr int IndexOf<WateringMessage>() {
     return 1;
 }
 
-template<>
+template <>
 constexpr int IndexOf<int>() {
     return 2;
 }
 
 static_assert(IndexOf<WateringMessage>() == 1);
 static_assert(IndexOf<int>() == 2);
-
-

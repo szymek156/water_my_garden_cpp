@@ -15,16 +15,6 @@ static const gpio_num_t INT_PIN = (gpio_num_t)23;
 Clock::Clock() : queues_(xQueueCreateSet(10)) {
 }
 
-// This implementation went way too far
-struct Visitor {
-    template <typename T>
-    bool operator()(const std::unique_ptr<Socket<T>>& el) {
-        return el->get_rx() == member_;
-    }
-
-    QueueSetMemberHandle_t member_;
-};
-
 void Clock::run_service() {
     ESP_LOGI(TAG, "Starting service");
 
@@ -43,13 +33,13 @@ void Clock::run_service() {
         QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(1000));
 
         auto found = std::find_if(connections_.cbegin(), connections_.cend(), [&](const auto& vt) {
-            return std::visit(Visitor{.member_ = active_member}, vt.second);
+            return vt.second->get_rx() == active_member;
         });
 
         switch ((*found).first) {
             case IndexOf<WateringMessage>(): {
 
-                auto &sock = std::get<Socket<WateringMessage>::SockPtr>((*found).second);
+                auto *sock = reinterpret_cast<Socket<WateringMessage>*>((*found).second.get());
                 if (auto msg = sock->rcv(0)) {
 
                 }

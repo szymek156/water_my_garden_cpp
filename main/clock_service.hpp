@@ -31,6 +31,5 @@ class Clock {
 
     QueueSetHandle_t queues_;
 
-    using MessageVariants = std::variant<Socket<WateringMessage>::SockPtr, Socket<int>::SockPtr>;
-    std::unordered_map<TypeIndex, MessageVariants> connections_;
+    std::unordered_map<TypeIndex, std::unique_ptr<ISocket>> connections_;
 };
