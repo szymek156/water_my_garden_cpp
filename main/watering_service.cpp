@@ -30,7 +30,8 @@ void Watering::run_service() {
         QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(1000));
 
         if (active_member == nullptr) {
-            moisture_->send(Message{.type = Message::Type::MoistureReq, {.section = 0}});
+    static int s = 0;
+            moisture_->send(Message{.type = Message::Type::MoistureReq, {.section = s++ % 4}});
         }
 
         if (active_member == moisture_->get_rx()) {
@@ -39,7 +40,7 @@ void Watering::run_service() {
                 switch (msg.type) {
                     case Message::Type::MoistureRes:
                         ESP_LOGI(TAG,
-                                 "Got moisture res for channel %d, moisture %f",
+                                 "Got moisture res for channel %u, moisture %f",
                                  msg.section_r,
                                  msg.moisture);
                         break;
@@ -51,7 +52,17 @@ void Watering::run_service() {
         }
 
         if (active_member == clock_->get_rx()) {
-            ESP_LOGI(TAG, "Got watering request!");
+            if (auto data = clock_->rcv(0)) {
+                auto msg = *data;
+                switch (msg.type) {
+                    case Message::Type::StartWatering:
+                        ESP_LOGI(TAG, "Got watering request!");
+                        break;
+
+                    default:
+                        break;
+                }
+            }
         }
     }
 }
@@ -99,7 +110,7 @@ void Watering::say_hello() {
     }
 }
 
-void Watering::set_the_alarm(const struct tm &alarm_tm) {
+void Watering::set_the_alarm(const struct tm& alarm_tm) {
     auto msg = Message{};
     msg.type = Message::Type::SetAlarm;
     msg.alarm_tm = alarm_tm;

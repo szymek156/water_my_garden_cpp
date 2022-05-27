@@ -6,7 +6,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#define LOG_LOCAL_LEVEL ESP_LOG_WARN
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include <cmath>
 
 #include <esp_log.h>
@@ -56,6 +56,10 @@ void Moisture::run_service() {
                 case Message::Type::MoistureReq: {
                     ESP_LOGD(TAG, "Got moisture req for channel %d", msg.section);
 
+                    if (msg.section >= CHANNELS_SIZE) {
+                        break;
+                    }
+
                     auto reading = read_channel(CHANNELS[msg.section]);
                     float moisture = calc_moisture(reading.raw);
 
@@ -66,12 +70,12 @@ void Moisture::run_service() {
                              reading.voltage,
                              moisture);
 
-                    auto msg = Message{};
-                    msg.type = Message::Type::MoistureRes;
-                    msg.section_r = msg.section;
-                    msg.moisture = moisture;
+                    auto resp = Message{};
+                    resp.type = Message::Type::MoistureRes;
+                    resp.section_r = msg.section;
+                    resp.moisture = moisture;
 
-                    requestor_->send(msg);
+                    requestor_->send(resp);
                     break;
                 }
 
