@@ -2,8 +2,6 @@
 
 #include "ds3231.h"
 
-#include <algorithm>
-
 #include <esp_check.h>
 #include <esp_log.h>
 
@@ -12,7 +10,7 @@ static const gpio_num_t RTC_SDA = (gpio_num_t)21;
 static const gpio_num_t RTC_SCL = (gpio_num_t)22;
 static const gpio_num_t INT_PIN = (gpio_num_t)23;
 
-Clock::Clock() : queues_(xQueueCreateSet(10)) {
+Clock::Clock() {
 }
 
 void Clock::run_service() {
@@ -30,21 +28,19 @@ void Clock::run_service() {
     }
 
     while (1) {
-        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(1000));
+        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(-1));
 
-        auto found = std::find_if(connections_.cbegin(), connections_.cend(), [&](const auto& vt) {
-            return vt.second->get_rx() == active_member;
-        });
+        // auto found = find_connection_by_rx(active_member);
 
-        switch ((*found).first) {
-            case IndexOf<WateringMessage>(): {
-
-                auto *sock = reinterpret_cast<Socket<WateringMessage>*>((*found).second.get());
-                if (auto msg = sock->rcv(0)) {
-
-                }
-            }
-        }
+        // if (found != connections_.end()) {
+        //     switch ((*found).first) {
+        //         case IndexOf<WateringMessage>(): {
+        //             auto* sock = reinterpret_cast<Socket<WateringMessage>*>((*found).second.get());
+        //             if (auto msg = sock->rcv(0)) {
+        //             }
+        //         }
+        //     }
+        // }
         // float temp;
         // struct tm rtcinfo;
 

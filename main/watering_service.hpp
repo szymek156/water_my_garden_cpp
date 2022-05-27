@@ -1,11 +1,9 @@
 #pragma once
-#include "socket.hpp"
-
+#include "service_base.hpp"
 #include <driver/gpio.h>
-class Watering {
+class Watering : public ServiceBase{
  public:
-    using MsgType = WateringMessage;
-    Watering();
+    Watering(SockPtr clock, SockPtr moisture);
 
     void run_service();
 
@@ -22,5 +20,8 @@ class Watering {
     void say_hello();
 
     void setup_gpio();
+
+    SockPtr clock_;
+    SockPtr moisture_;
 
 };

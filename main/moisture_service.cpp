@@ -7,10 +7,11 @@
 #include <freertos/task.h>
 
 #define LOG_LOCAL_LEVEL ESP_LOG_WARN
+#include <cmath>
+
 #include <esp_log.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <cmath>
 
 static const char *TAG = "Moisture";
 
@@ -24,14 +25,12 @@ static void print_char_val_type(esp_adc_cal_value_t val_type) {
     }
 }
 
-Moisture::Moisture()
+Moisture::Moisture(SockPtr requestor)
     : _adc_chars((esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t))),
       width_(ADC_WIDTH_BIT_12),
       atten_(ADC_ATTEN_DB_11),
-      queue_(nullptr) {
-
-    queue_ = xQueueCreate(1, sizeof(MoistureMessage));
-    configASSERT(queue_);
+      requestor_(std::move(requestor)) {
+    xQueueAddToSet(requestor_->get_rx(), queues_);
 }
 
 void Moisture::run_service() {
@@ -47,24 +46,57 @@ void Moisture::run_service() {
     print_char_val_type(val_type);
 
     while (1) {
-        for (auto channel : CHANNELS) {
-            auto reading = read_channel(channel);
+        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(-1));
 
-            ESP_LOGD(
-                TAG, "Channel %d raw: %d\tVoltage: %dmV\n", channel, reading.raw, reading.voltage);
+        assert(active_member == requestor_->get_rx());
 
+        if (auto data = requestor_->rcv(0)) {
+            auto msg = *data;
+            switch (msg.type) {
+                case Message::Type::MoistureReq: {
+                    ESP_LOGD(TAG, "Got moisture req for channel %d", msg.section);
 
-            float moisture = calc_moisture(reading.raw);
+                    auto reading = read_channel(CHANNELS[msg.section]);
 
-            ESP_LOGI(TAG, "Channel %d moisture %f%%\n", channel, moisture);
+                    ESP_LOGD(TAG,
+                             "Channel %d raw: %d\tVoltage: %dmV\n",
+                             msg.section,
+                             reading.raw,
+                             reading.voltage);
 
-            MoistureMessage data = MoistureMessage {.moisture = moisture, .channel = channel};
-            if (xQueueOverwrite(queue_, &data) != pdPASS) {
-                ESP_LOGE(TAG, "Failed to send data");
+                    float moisture = calc_moisture(reading.raw);
+
+                    auto msg = Message{};
+                    msg.type = Message::Type::MoistureRes;
+                    msg.section_r = msg.section;
+                    msg.moisture = moisture;
+
+                    requestor_->send(msg);
+                    break;
+                }
+
+                default:
+                    break;
             }
-
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        // for (auto channel : CHANNELS) {
+        //     auto reading = read_channel(channel);
+
+        //     ESP_LOGD(
+        //         TAG, "Channel %d raw: %d\tVoltage: %dmV\n", channel, reading.raw,
+        //         reading.voltage);
+
+        //     float moisture = calc_moisture(reading.raw);
+
+        //     ESP_LOGI(TAG, "Channel %d moisture %f%%\n", channel, moisture);
+
+        //     MoistureMessage data = MoistureMessage{.moisture = moisture, .channel = channel};
+        //     if (xQueueOverwrite(queue_, &data) != pdPASS) {
+        //         ESP_LOGE(TAG, "Failed to send data");
+        //     }
+        // }
+        // vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 

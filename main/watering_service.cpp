@@ -6,7 +6,11 @@
 
 static const char* TAG = "Watering";
 
-Watering::Watering() {
+Watering::Watering(SockPtr clock, SockPtr moisture)
+    : clock_(std::move(clock)),
+      moisture_(std::move(moisture)) {
+    xQueueAddToSet(clock_->get_rx(), queues_);
+    xQueueAddToSet(moisture_->get_rx(), queues_);
 }
 
 void Watering::run_service() {
@@ -15,7 +19,42 @@ void Watering::run_service() {
     setup_gpio();
     say_hello();
 
+
+    // auto msg = Message{};
+    // msg.type = Message::Type::SetAlarm;
+    // msg.alarm_tm.tm_hour = 20;
+    // msg.alarm_tm.tm_min = 00;
+    // msg.alarm_tm.tm_sec = 00;
+
+    // clock_->send(msg);
+
     while (1) {
+        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(1000));
+
+        if (active_member == nullptr) {
+            moisture_->send(Message{.type = Message::Type::MoistureReq, {.section = 0}});
+        }
+
+        if (active_member == moisture_->get_rx()) {
+            if (auto data = moisture_->rcv(0)) {
+                auto msg = *data;
+                switch (msg.type) {
+                    case Message::Type::MoistureRes:
+                        ESP_LOGI(TAG,
+                                 "Got moisture res for channel %d, moisture %f",
+                                 msg.section_r,
+                                 msg.moisture);
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+
+        if (active_member == clock_->get_rx()) {
+        }
+
         // if (xQueueReceive(keypad_q_, &keypad_data, TIMEOUT) == pdPASS) {
         //     ESP_LOGV(TAG, "Got Keypad event");
         //     notifyKeypad(keypad_data);

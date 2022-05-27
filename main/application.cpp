@@ -23,15 +23,6 @@ void service(void* param) {
     service->run_service();
 }
 
-template <typename A, typename B>
-void attach(A& a, B& b) {
-    auto sock_a = std::unique_ptr<Socket<typename A::MsgType>>(new Socket<typename A::MsgType>(1));
-    auto sock_b = sock_a->connect();
-
-    // a.add_connection(std::move(sock_a));
-    b.add_connection(std::move(sock_b));
-}
-
 void StartApplication() {
     ESP_LOGI(TAG, R"foo(
 .--.      .--.    ____     ,---------.      .-''-.   .-------.
@@ -65,12 +56,14 @@ void StartApplication() {
                            `'-...-'    '.(_,_).'  ''-'   `'-'   '-----'`        `'-..-'   '--'    '--'
 )foo");
 
-    Clock clock;
-    Moisture moisture;
-    Watering watering;
+    auto watering_clock = SockPtr(new Socket(1));
+    auto clock_watering = watering_clock->connect();
 
-    // attach(watering, moisture);
-    attach(watering, clock);
+    auto watering_moisture = SockPtr(new Socket(1));
+
+    Clock clock;
+    Moisture moisture(watering_moisture->connect());
+    Watering watering(std::move(watering_clock), std::move(watering_moisture));
 
     xTaskCreate(service<Clock>, "clock", 1024 * 4, &clock, 2, NULL);
     xTaskCreate(service<Moisture>, "moisture", 1024 * 4, &moisture, 2, NULL);
