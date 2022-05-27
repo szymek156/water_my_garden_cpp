@@ -25,10 +25,7 @@ void Clock::run_service() {
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Clock service is not operational! Err code %s", esp_err_to_name(ret));
 
-        // Go to infinite loop to avoid reset loop of the controller
-        while (1) {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+        abort();
     }
 
     float temp;
@@ -36,16 +33,12 @@ void Clock::run_service() {
 
     if (ds3231_get_temp_float(&dev_, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
-        while (1) {
-            vTaskDelay(1);
-        }
+        abort();
     }
 
     if (ds3231_get_time(&dev_, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-        while (1) {
-            vTaskDelay(1);
-        }
+        abort();
     }
 
     ESP_LOGI(pcTaskGetName(0),

@@ -57,14 +57,14 @@ void Moisture::run_service() {
                     ESP_LOGD(TAG, "Got moisture req for channel %d", msg.section);
 
                     auto reading = read_channel(CHANNELS[msg.section]);
+                    float moisture = calc_moisture(reading.raw);
 
                     ESP_LOGD(TAG,
-                             "Channel %d raw: %d\tVoltage: %dmV\n",
+                             "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
                              msg.section,
                              reading.raw,
-                             reading.voltage);
-
-                    float moisture = calc_moisture(reading.raw);
+                             reading.voltage,
+                             moisture);
 
                     auto msg = Message{};
                     msg.type = Message::Type::MoistureRes;
@@ -79,24 +79,6 @@ void Moisture::run_service() {
                     break;
             }
         }
-
-        // for (auto channel : CHANNELS) {
-        //     auto reading = read_channel(channel);
-
-        //     ESP_LOGD(
-        //         TAG, "Channel %d raw: %d\tVoltage: %dmV\n", channel, reading.raw,
-        //         reading.voltage);
-
-        //     float moisture = calc_moisture(reading.raw);
-
-        //     ESP_LOGI(TAG, "Channel %d moisture %f%%\n", channel, moisture);
-
-        //     MoistureMessage data = MoistureMessage{.moisture = moisture, .channel = channel};
-        //     if (xQueueOverwrite(queue_, &data) != pdPASS) {
-        //         ESP_LOGE(TAG, "Failed to send data");
-        //     }
-        // }
-        // vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
