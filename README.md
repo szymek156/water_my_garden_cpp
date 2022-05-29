@@ -20,6 +20,7 @@ https://deepbluembedded.com/esp32-adc-tutorial-read-analog-voltage-arduino/
 
 [ x ] RTC: use interrupt to wakeup schedule
 
+[ x ] Make communication between tasks
 [ ] add schedule
 
 [ x ] Convert 12V AC to 5V DC
@@ -30,7 +31,6 @@ https://deepbluembedded.com/esp32-adc-tutorial-read-analog-voltage-arduino/
 
 [ ] Start webserver to control
 
-[ ] avoid reset loop in case of any failure
 # moisture sensor
 https://www.sigmaelectronica.net/wp-content/uploads/2018/04/sen0193-humedad-de-suelos.pdf
 
