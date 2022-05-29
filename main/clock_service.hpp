@@ -15,6 +15,8 @@ class Clock : public ServiceBase {
     static void int_handler(void* arg);
 
     esp_err_t init_rtc();
+    void print_status();
+
 
     i2c_dev_t dev_;
 

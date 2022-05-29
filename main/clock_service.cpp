@@ -28,31 +28,14 @@ void Clock::run_service() {
         abort();
     }
 
-    float temp;
-    struct tm rtcinfo;
-
-    if (ds3231_get_temp_float(&dev_, &temp) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
-        abort();
-    }
-
-    if (ds3231_get_time(&dev_, &rtcinfo) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-        abort();
-    }
-
-    ESP_LOGI(pcTaskGetName(0),
-             "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel",
-             rtcinfo.tm_year,
-             rtcinfo.tm_mon + 1,
-             rtcinfo.tm_mday,
-             rtcinfo.tm_hour,
-             rtcinfo.tm_min,
-             rtcinfo.tm_sec,
-             temp);
+    print_status();
 
     while (1) {
-        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(-1));
+        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(5 * 1000));
+
+        if (active_member == nullptr) {
+            print_status();
+        }
 
         if (active_member == interrupt_arrived_) {
             xSemaphoreTake(interrupt_arrived_, 0);
@@ -63,15 +46,74 @@ void Clock::run_service() {
             ds3231_get_alarm_flags(&dev_, &alarms);
             ESP_LOGI(TAG, "alarm elapsed 0x%02x", alarms);
 
-            if (alarms == 0x1) {
+            // Alarm flag is set regardles of the state of interrupt
+            // So additional check for alarm int status must be done
+            uint8_t control = 0;
+            ds3231_get_control(&dev_, &control);
+
+            if ((alarms & 0x1) && (control & 0x1)) {
                 auto msg = Message{};
-                msg.type = Message::Type::StartWatering;
+                msg.type = Message::Type::Alarm1Expired;
+
+                watering_->send(msg);
+            }
+
+            if ((alarms & 0x2) && (control & 0x2)) {
+                auto msg = Message{};
+                msg.type = Message::Type::Alarm2Expired;
 
                 watering_->send(msg);
             }
 
             // Clearing alarm puts INT pin back to high
             ds3231_clear_alarm_flags(&dev_, alarms);
+        }
+
+        if (active_member == watering_->get_rx()) {
+            if (auto data = watering_->rcv(0)) {
+                auto msg = *data;
+
+                switch (msg.type) {
+                    case Message::Type::SetAlarm1: {
+                        ESP_LOGI(TAG, "SetAlarm1!");
+
+                        ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_1);
+                        ds3231_set_alarm(&dev_,
+                                       DS3231_ALARM_1,
+                                       &msg.alarm_tm,
+                                       DS3231_ALARM1_MATCH_SEC,
+                                       nullptr,
+                                       (ds3231_alarm2_rate_t)0);
+                        break;
+                    }
+
+                    case Message::Type::SetAlarm2: {
+                        ESP_LOGI(TAG, "SetAlarm2!");
+
+                        // Enable interrupt, might be disabled in previous clear call
+                        ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_2);
+                        ds3231_set_alarm(&dev_,
+                            DS3231_ALARM_2,
+                            nullptr,
+                            (ds3231_alarm1_rate_t)0,
+                            &msg.alarm_tm,
+                            DS3231_ALARM2_EVERY_MIN);
+                        break;
+                    }
+                    case Message::Type::ClearAlarm1: {
+                        ESP_LOGI(TAG, "ClearAlarm1!");
+                        ds3231_disable_alarm_ints(&dev_, DS3231_ALARM_1);
+                        break;
+                    }
+                    case Message::Type::ClearAlarm2: {
+                        ESP_LOGI(TAG, "ClearAlarm2!");
+                        ds3231_disable_alarm_ints(&dev_, DS3231_ALARM_2);
+                        break;
+                    }
+                    default:
+                        ESP_LOGE(TAG, "Unexpected msg %d from watering service!", (int)msg.type);
+                }
+            }
         }
     }
 }
@@ -117,24 +159,12 @@ esp_err_t Clock::init_rtc() {
     ESP_GOTO_ON_ERROR(
         ds3231_clear_alarm_flags(&dev_, DS3231_ALARM_BOTH), err, TAG, "Failed to clear flags");
 
-    struct tm alarm_time;
-    alarm_time.tm_hour = 18;
-    alarm_time.tm_min = 02;
-    alarm_time.tm_sec = 40;
-
-    ESP_GOTO_ON_ERROR(ds3231_set_alarm(&dev_,
-                                       DS3231_ALARM_BOTH,
-                                       &alarm_time,
-                                       DS3231_ALARM1_MATCH_SEC,
-                                       &alarm_time,
-                                       DS3231_ALARM2_MATCH_MIN),
-                      err,
-                      TAG,
-                      "Failed to set alarm");
-
-    // Enabling interrupts also disables SQW spam on the pin
+    // Switch sqw/int flag to alarm INT mode, but do not arm any alarms yet.
     ESP_GOTO_ON_ERROR(
-        ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_BOTH), err, TAG, "Failed to enable interrupt");
+        ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_NONE), err, TAG, "Failed to enable interrupt");
+
+    // TODO: There is a bug in call above, ALARM_NONE is 0, and setting 0 bits is ignored, so disable ints manually
+    ESP_GOTO_ON_ERROR(ds3231_disable_alarm_ints(&dev_, DS3231_ALARM_BOTH), err, TAG, "Failed to disable alarm ints");
 
     // Setup GPIO pin to be ready to receive interrupts
     ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "Failed to setup gpio");
@@ -149,4 +179,47 @@ esp_err_t Clock::init_rtc() {
 
 err:
     return ret;
+}
+
+void Clock::print_status() {
+    float temp;
+    struct tm rtcinfo;
+
+    if (ds3231_get_temp_float(&dev_, &temp) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
+        abort();
+    }
+
+    if (ds3231_get_time(&dev_, &rtcinfo) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
+        abort();
+    }
+
+    //     7        6    5    4        3            2       1             0
+    // osc status | NA | NA | NA | sqw status | busy | alarm 2 set | alarm 1 set
+    uint8_t status = 0;
+    ds3231_get_status(&dev_, &status);
+
+    //  7        6           5             4           3            2                    1                  0
+    // osc en| sqw en | convert temp | sqw rate2 | sqw rate 1 | INT/SQW switch | alarm 2 int enable | alarm 1 int enable
+    uint8_t ctrl;
+    ds3231_get_control(&dev_, &ctrl);
+    ESP_LOGI(TAG, "Status reg 0x%02X ctrl 0x%02X", status, ctrl);
+    ESP_LOGI(TAG, "Alarm1 expired: %s Alarm1 int enabled %s", status & 0x1 ? "true" : "false",
+                ctrl & 0x1 ? "true" : "false");
+    ESP_LOGI(TAG, "Alarm2 expired: %s Alarm2 int enabled %s", status & 0x2 ? "true" : "false",
+                ctrl & 0x2 ? "true" : "false");
+
+
+
+
+    ESP_LOGI(pcTaskGetName(0),
+            "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel",
+            rtcinfo.tm_year,
+            rtcinfo.tm_mon + 1,
+            rtcinfo.tm_mday,
+            rtcinfo.tm_hour,
+            rtcinfo.tm_min,
+            rtcinfo.tm_sec,
+            temp);
 }

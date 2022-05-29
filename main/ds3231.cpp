@@ -161,7 +161,22 @@ esp_err_t ds3231_enable_alarm_ints(i2c_dev_t *dev, ds3231_alarm_t alarms)
     CHECK_ARG(dev);
 
     return ds3231_set_flag(dev, DS3231_ADDR_CONTROL, DS3231_CTRL_ALARM_INTS | alarms, DS3231_SET);
+}
 
+esp_err_t ds3231_get_status(i2c_dev_t *dev, uint8_t *status)
+{
+    CHECK_ARG(dev);
+    CHECK_ARG(status);
+
+    return ds3231_get_flag(dev, DS3231_ADDR_STATUS, 0xFF, (uint8_t *)status);
+}
+
+esp_err_t ds3231_get_control(i2c_dev_t *dev, uint8_t *control)
+{
+    CHECK_ARG(dev);
+    CHECK_ARG(control);
+
+    return ds3231_get_flag(dev, DS3231_ADDR_CONTROL, 0xFF, (uint8_t *)control);
 }
 
 esp_err_t ds3231_disable_alarm_ints(i2c_dev_t *dev, ds3231_alarm_t alarms)

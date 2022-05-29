@@ -92,6 +92,8 @@ esp_err_t ds3231_set_alarm(i2c_dev_t *dev, ds3231_alarm_t alarms, struct tm *tim
 esp_err_t ds3231_get_alarm_flags(i2c_dev_t *dev, ds3231_alarm_t *alarms);
 esp_err_t ds3231_clear_alarm_flags(i2c_dev_t *dev, ds3231_alarm_t alarms);
 esp_err_t ds3231_enable_alarm_ints(i2c_dev_t *dev, ds3231_alarm_t alarms);
+esp_err_t ds3231_get_status(i2c_dev_t *dev, uint8_t *status);
+esp_err_t ds3231_get_control(i2c_dev_t *dev, uint8_t *control);
 esp_err_t ds3231_disable_alarm_ints(i2c_dev_t *dev, ds3231_alarm_t alarms);
 
 #endif /* MAIN_DS3231_H_ */

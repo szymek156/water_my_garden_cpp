@@ -14,8 +14,12 @@ struct Message {
     enum class Type {
         MoistureReq,
         MoistureRes,
-        StartWatering,
-        SetAlarm,
+        Alarm1Expired,
+        Alarm2Expired,
+        SetAlarm1,
+        SetAlarm2,
+        ClearAlarm1,
+        ClearAlarm2
     } type;
 
     union {
@@ -30,10 +34,10 @@ struct Message {
             float moisture;
         };
 
-        // StartWatering
+        // Alarm1Expired
         struct {};
 
-        // SetAlarm
+        // SetAlarm1, SetAlarm2
         struct {
             struct tm alarm_tm;
         };

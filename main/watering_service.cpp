@@ -11,11 +11,14 @@ static const char* TAG = "Watering";
 Watering::Watering(SockPtr clock, SockPtr moisture)
     : current_state_(Idle),
       current_section_(0),
+      watering_in_progress_(false),
       clock_(std::move(clock)),
-      moisture_(std::move(moisture)) {
+      moisture_(std::move(moisture)),
+      moisture_monitor_(xTimerCreate("moist_monit", pdMS_TO_TICKS(1000), false, this, moisture_monitor_cb)) {
     xQueueAddToSet(clock_->get_rx(), queues_);
     xQueueAddToSet(moisture_->get_rx(), queues_);
 }
+
 
 void Watering::run_service() {
     ESP_LOGI(TAG, "Service started");
@@ -25,8 +28,8 @@ void Watering::run_service() {
 
     struct tm alarm_tm = {};
 
-    alarm_tm.tm_hour = 20;
-    alarm_tm.tm_min = 00;
+    alarm_tm.tm_hour = 21;
+    alarm_tm.tm_min = 55;
     alarm_tm.tm_sec = 00;
     set_the_alarm(alarm_tm);
 
@@ -51,6 +54,7 @@ void Watering::run_service() {
     }
 }
 
+
 // TODO: that could be a state machine if becomes too complex
 void Watering::update_state(const Message& msg) {
     while (1) {
@@ -65,7 +69,11 @@ void Watering::update_state(const Message& msg) {
             }
 
             case WateringSection: {
-                current_state_ = handle_watering(msg);
+                auto new_state = handle_watering(msg);
+                if (new_state != current_state_) {
+                    current_state_ = new_state;
+                    continue;
+                }
                 return;
             }
 
@@ -77,7 +85,7 @@ void Watering::update_state(const Message& msg) {
 
 Watering::CurrentState Watering::handle_idle(const Message& msg) {
     switch (msg.type) {
-        case Message::Type::StartWatering:
+        case Message::Type::Alarm1Expired:
             ESP_LOGI(TAG, "Starting watering procedure!");
             return WateringSection;
 
@@ -89,8 +97,10 @@ Watering::CurrentState Watering::handle_idle(const Message& msg) {
 
 Watering::CurrentState Watering::handle_watering(const Message& msg) {
     switch (msg.type) {
-        case Message::Type::StartWatering: {
-            // Firstly check if section requires watering
+        case Message::Type::Alarm1Expired: {
+            turn_off_valves();
+
+            // Check if section requires watering
             auto req = Message{};
             req.type = Message::Type::MoistureReq;
             req.section = current_section_;
@@ -100,18 +110,43 @@ Watering::CurrentState Watering::handle_watering(const Message& msg) {
             // arm timer
             return current_state_;
         }
+        case Message::Type::Alarm2Expired: {
+            ESP_LOGI(TAG, "Time expired for section %d", current_section_);
+            switch_to_next_section();
+            return current_state_;
+        }
         case Message::Type::MoistureRes:
             ESP_LOGI(
                 TAG, "Got moisture res for channel %u, moisture %f", msg.section_r, msg.moisture);
 
             // TODO: define threshold
-            if (msg.moisture > 0.9 || msg.moisture == nanf("")) {
-                // Feels wet enough, or there is no reading
+            if (msg.moisture >= 0.5) {
+                // Feels wet enough
+                ESP_LOGI(TAG, "Section %d is wet enough!", current_section_);
 
-                current_section_++;
+                switch_to_next_section();
+            } else {
+                // Keep watering
+                if (!watering_in_progress_) {
+                    ESP_LOGI(TAG, "Watering section %u", current_section_);
+                    gpio_set_level(sections_[current_section_], TURN_ON);
+                    // schedule this watering to last for that period of time
+                    // it can finish earlier, if sensor says so
+                    struct tm alarm_tm = {};
+
+                    alarm_tm.tm_hour = 00;
+                    alarm_tm.tm_min = 02;
+                    alarm_tm.tm_sec = 00;
+                    switch_section_in(alarm_tm);
+                    watering_in_progress_ = true;
+                }
+
+                if (!std::isnan(msg.moisture)) {
+                    // There is measurement avaliable, monitor it during the watering process
+                    xTimerStart(moisture_monitor_, 0);
+                }
             }
 
-            // Reschedule next measurement
             return current_state_;
 
         default:
@@ -151,10 +186,7 @@ void Watering::setup_gpio() {
 }
 
 void Watering::say_hello() {
-    const int SECTION_SIZE = 4;
-    gpio_num_t sections[SECTION_SIZE] = {SECTION_ONE, SECTION_TWO, SECTION_THREE, SECTION_FOUR};
-
-    for (auto section : sections) {
+    for (auto section : sections_) {
         gpio_set_level(section, TURN_ON);
 
         vTaskDelay(pdMS_TO_TICKS(300));
@@ -165,8 +197,61 @@ void Watering::say_hello() {
 
 void Watering::set_the_alarm(const struct tm& alarm_tm) {
     auto msg = Message{};
-    msg.type = Message::Type::SetAlarm;
+    msg.type = Message::Type::SetAlarm1;
     msg.alarm_tm = alarm_tm;
 
     clock_->send(msg);
+}
+
+void Watering::switch_section_in(const struct tm& alarm_tm) {
+    auto msg = Message{};
+    msg.type = Message::Type::SetAlarm2;
+    msg.alarm_tm = alarm_tm;
+
+    clock_->send(msg);
+}
+
+
+void Watering::turn_off_valves() {
+    ESP_LOGI(TAG, "Disabling valves");
+    for (auto section : sections_) {
+        gpio_set_level(section, TURN_OFF);
+    }
+}
+
+void Watering::on_moisture_monitor_expire() {
+    // Check if section still requires watering
+    auto req = Message{};
+    req.type = Message::Type::MoistureReq;
+    req.section = current_section_;
+
+    moisture_->send(req);
+}
+
+void Watering::moisture_monitor_cb(TimerHandle_t timer) {
+    ESP_LOGI("moisture_timer_cb", "Timer expired!");
+    // Naming is unfortunate, we need to live with it
+    auto service = (Watering *)pvTimerGetTimerID(timer);
+
+    service->on_moisture_monitor_expire();
+}
+
+void Watering::switch_to_next_section() {
+    xTimerStop(moisture_monitor_, 0);
+    turn_off_valves();
+    watering_in_progress_ = false;
+    current_section_++;
+
+    ESP_LOGI(TAG, "Switch to next section %d", current_section_);
+
+    auto clear_alarm = Message{};
+    clear_alarm.type = Message::Type::ClearAlarm2;
+    clock_->send(clear_alarm);
+
+    // Check if next section requires watering
+    auto req = Message{};
+    req.type = Message::Type::MoistureReq;
+    req.section = current_section_;
+
+    moisture_->send(req);
 }

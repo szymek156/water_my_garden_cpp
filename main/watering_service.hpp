@@ -2,6 +2,9 @@
 #include "service_base.hpp"
 
 #include <driver/gpio.h>
+#include <array>
+#include <freertos/timers.h>
+
 class Watering : public ServiceBase {
  public:
     Watering(SockPtr clock, SockPtr moisture);
@@ -14,6 +17,9 @@ class Watering : public ServiceBase {
     static const gpio_num_t SECTION_THREE = (gpio_num_t)26;
     static const gpio_num_t SECTION_FOUR = (gpio_num_t)33;
 
+   static const int SECTION_SIZE = 4;
+   static constexpr std::array<gpio_num_t, SECTION_SIZE> sections_ = {SECTION_ONE, SECTION_TWO, SECTION_THREE, SECTION_FOUR};
+
     // TODO: add pulldown resistor?
     static const int TURN_ON = 0;
     static const int TURN_OFF = 1;
@@ -25,7 +31,14 @@ class Watering : public ServiceBase {
     void update_state(const Message& msg);
 
     void set_the_alarm(const struct tm& alarm_tm);
+    void turn_off_valves();
+    void switch_section_in(const struct tm& alarm_tm);
+    void on_moisture_monitor_expire();
+    void switch_to_next_section();
 
+    static void moisture_monitor_cb(TimerHandle_t timer);
+
+    // State machine
     enum CurrentState { Idle, WateringSection };
 
     CurrentState handle_idle(const Message& msg);
@@ -33,6 +46,8 @@ class Watering : public ServiceBase {
 
     CurrentState current_state_;
     int current_section_;
+    bool watering_in_progress_;
     SockPtr clock_;
     SockPtr moisture_;
+    TimerHandle_t moisture_monitor_;
 };
