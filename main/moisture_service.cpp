@@ -15,6 +15,9 @@
 
 static const char *TAG = "Moisture";
 
+// Prints status of sensors periodically
+// #define TESTING 1
+
 static void print_char_val_type(esp_adc_cal_value_t val_type) {
     if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {
         ESP_LOGD(TAG, "Characterized using Two Point Value\n");
@@ -45,43 +48,51 @@ void Moisture::run_service() {
         esp_adc_cal_characterize(ADC_UNIT_1, atten_, width_, DEFAULT_VREF, _adc_chars);
     print_char_val_type(val_type);
 
+    #if TESTING
+        int interval = 1000;
+    #else
+        int interval = -1;
+    #endif
+
     while (1) {
-        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(-1));
+        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(interval));
 
-        assert(active_member == requestor_->get_rx());
+        if (active_member == requestor_->get_rx()) {
+            if (auto data = requestor_->rcv(0)) {
+                auto msg = *data;
+                switch (msg.type) {
+                    case Message::Type::MoistureReq: {
+                        ESP_LOGD(TAG, "Got moisture req for channel %d", msg.section);
 
-        if (auto data = requestor_->rcv(0)) {
-            auto msg = *data;
-            switch (msg.type) {
-                case Message::Type::MoistureReq: {
-                    ESP_LOGD(TAG, "Got moisture req for channel %d", msg.section);
+                        ChannelReading reading = {};
+                        if (msg.section < CHANNELS_SIZE) {
+                            reading = read_channel(CHANNELS[msg.section]);
+                        }
 
-                    ChannelReading reading = {};
-                    if (msg.section < CHANNELS_SIZE) {
-                        reading = read_channel(CHANNELS[msg.section]);
+                        float moisture = calc_moisture(reading.raw);
+
+                        ESP_LOGD(TAG,
+                                "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
+                                msg.section,
+                                reading.raw,
+                                reading.voltage,
+                                moisture);
+
+                        auto resp = Message{};
+                        resp.type = Message::Type::MoistureRes;
+                        resp.section_r = msg.section;
+                        resp.moisture = moisture;
+
+                        requestor_->send(resp);
+                        break;
                     }
 
-                    float moisture = calc_moisture(reading.raw);
-
-                    ESP_LOGD(TAG,
-                             "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
-                             msg.section,
-                             reading.raw,
-                             reading.voltage,
-                             moisture);
-
-                    auto resp = Message{};
-                    resp.type = Message::Type::MoistureRes;
-                    resp.section_r = msg.section;
-                    resp.moisture = moisture;
-
-                    requestor_->send(resp);
-                    break;
+                    default:
+                        break;
                 }
-
-                default:
-                    break;
             }
+        } else {
+            print_status();
         }
     }
 }
@@ -114,4 +125,20 @@ float Moisture::calc_moisture(int adc_raw) {
     res = 1.0f - std::max(std::min(res, 1.0f), 0.0f);
 
     return res;
+}
+
+
+void Moisture::print_status() {
+    for (auto channel : CHANNELS) {
+        auto  reading = read_channel(channel);
+        float moisture = calc_moisture(reading.raw);
+        ESP_LOGD(TAG,
+            "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
+            channel,
+            reading.raw,
+            reading.voltage,
+            moisture);
+    }
+
+
 }

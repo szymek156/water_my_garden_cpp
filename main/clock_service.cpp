@@ -4,11 +4,24 @@
 
 #include <esp_check.h>
 #include <esp_log.h>
+#include <ctime>
 
 static const char* TAG = "Clock";
 static const gpio_num_t RTC_SDA = (gpio_num_t)21;
 static const gpio_num_t RTC_SCL = (gpio_num_t)22;
 static const gpio_num_t INT_PIN = (gpio_num_t)23;
+
+
+static std::string date_to_str(struct tm date_tm) {
+    date_tm.tm_year -= 1900;
+
+    std::string buf;
+    buf.reserve(128);
+    strftime(buf.data(), 128, "%F %T", &date_tm);
+
+
+    return buf;
+}
 
 Clock::Clock(SockPtr watering)
     : watering_(std::move(watering)),
@@ -24,17 +37,17 @@ void Clock::run_service() {
 
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Clock service is not operational! Err code %s", esp_err_to_name(ret));
-
-        abort();
     }
 
     print_status();
+    adjust_system_time();
 
     while (1) {
-        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(5 * 1000));
+        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(10 * 60 * 1000));
 
         if (active_member == nullptr) {
             print_status();
+            adjust_system_time();
         }
 
         if (active_member == interrupt_arrived_) {
@@ -46,7 +59,7 @@ void Clock::run_service() {
             ds3231_get_alarm_flags(&dev_, &alarms);
             ESP_LOGI(TAG, "alarm elapsed 0x%02x", alarms);
 
-            // Alarm flag is set regardles of the state of interrupt
+            // Alarm flag is set regardless of the state of interrupt
             // So additional check for alarm int status must be done
             uint8_t control = 0;
             ds3231_get_control(&dev_, &control);
@@ -75,20 +88,20 @@ void Clock::run_service() {
 
                 switch (msg.type) {
                     case Message::Type::SetAlarm1: {
-                        ESP_LOGI(TAG, "SetAlarm1!");
+                        ESP_LOGI(TAG, "SetAlarm1! %s", date_to_str(msg.alarm_tm).c_str());
 
                         ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_1);
                         ds3231_set_alarm(&dev_,
                                        DS3231_ALARM_1,
                                        &msg.alarm_tm,
-                                       DS3231_ALARM1_MATCH_SEC,
+                                       DS3231_ALARM1_MATCH_SECMINHOUR,
                                        nullptr,
                                        (ds3231_alarm2_rate_t)0);
                         break;
                     }
 
                     case Message::Type::SetAlarm2: {
-                        ESP_LOGI(TAG, "SetAlarm2!");
+                        ESP_LOGI(TAG, "SetAlarm2! %s", date_to_str(msg.alarm_tm).c_str());
 
                         // Enable interrupt, might be disabled in previous clear call
                         ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_2);
@@ -97,7 +110,7 @@ void Clock::run_service() {
                             nullptr,
                             (ds3231_alarm1_rate_t)0,
                             &msg.alarm_tm,
-                            DS3231_ALARM2_EVERY_MIN);
+                            DS3231_ALARM2_MATCH_MINHOUR);
                         break;
                     }
                     case Message::Type::ClearAlarm1: {
@@ -187,12 +200,12 @@ void Clock::print_status() {
 
     if (ds3231_get_temp_float(&dev_, &temp) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
-        abort();
+        return;
     }
 
     if (ds3231_get_time(&dev_, &rtcinfo) != ESP_OK) {
         ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-        abort();
+        return;
     }
 
     //     7        6    5    4        3            2       1             0
@@ -204,22 +217,54 @@ void Clock::print_status() {
     // osc en| sqw en | convert temp | sqw rate2 | sqw rate 1 | INT/SQW switch | alarm 2 int enable | alarm 1 int enable
     uint8_t ctrl;
     ds3231_get_control(&dev_, &ctrl);
-    ESP_LOGI(TAG, "Status reg 0x%02X ctrl 0x%02X", status, ctrl);
-    ESP_LOGI(TAG, "Alarm1 expired: %s Alarm1 int enabled %s", status & 0x1 ? "true" : "false",
+    ESP_LOGD(TAG, "Status reg 0x%02X ctrl 0x%02X", status, ctrl);
+    ESP_LOGD(TAG, "Alarm1 expired: %s Alarm1 int enabled %s", status & 0x1 ? "true" : "false",
                 ctrl & 0x1 ? "true" : "false");
-    ESP_LOGI(TAG, "Alarm2 expired: %s Alarm2 int enabled %s", status & 0x2 ? "true" : "false",
+    ESP_LOGD(TAG, "Alarm2 expired: %s Alarm2 int enabled %s", status & 0x2 ? "true" : "false",
                 ctrl & 0x2 ? "true" : "false");
 
-
-
-
-    ESP_LOGI(pcTaskGetName(0),
-            "%04d-%02d-%02d %02d:%02d:%02d, %.2f deg Cel",
-            rtcinfo.tm_year,
-            rtcinfo.tm_mon + 1,
-            rtcinfo.tm_mday,
-            rtcinfo.tm_hour,
-            rtcinfo.tm_min,
-            rtcinfo.tm_sec,
+    ESP_LOGD(pcTaskGetName(0),
+            "%s, %.2f deg Cel",
+            date_to_str(rtcinfo).c_str(),
             temp);
+}
+
+// @brief Use RTC time and hammer system clock to it
+void Clock::adjust_system_time() {
+    // TODO: use 32kHz RTC pin to feed esp32 32K_XN pin
+    // In the future apply NTP server sync
+
+    struct tm rtcinfo = {};
+
+    if (ds3231_get_time(&dev_, &rtcinfo) != ESP_OK) {
+        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
+        return;
+    }
+
+    rtcinfo.tm_year -= 1900;
+    // UTC
+    std::time_t secs_from_epoch = mktime(&rtcinfo);
+
+    timeval t_val = {.tv_sec = secs_from_epoch, .tv_usec = 0};
+
+    time_t now;
+
+    time(&now);
+
+    ESP_LOGI(TAG, "Time sync: diff %ld", now - secs_from_epoch);
+
+    settimeofday(&t_val, nullptr);
+
+    // Lets use CET
+    // setenv("TZ", "CET2CEST0", 1);
+    // tzset();
+
+    struct tm timeinfo;
+
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    timeinfo.tm_year += 1900;
+
+    ESP_LOGI(TAG, "Time sync: %s", date_to_str(timeinfo).c_str());
 }

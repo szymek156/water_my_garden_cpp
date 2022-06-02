@@ -16,7 +16,7 @@ class Clock : public ServiceBase {
 
     esp_err_t init_rtc();
     void print_status();
-
+    void adjust_system_time();
 
     i2c_dev_t dev_;
 

@@ -30,9 +30,9 @@ class Watering : public ServiceBase {
 
     void update_state(const Message& msg);
 
-    void set_the_alarm(const struct tm& alarm_tm);
+    void set_the_alarm(struct tm alarm_tm);
     void turn_off_valves();
-    void switch_section_in(const struct tm& alarm_tm);
+    void switch_section(struct tm alarm_tm);
     void on_moisture_monitor_expire();
     void switch_to_next_section();
 
