@@ -9,11 +9,10 @@
 static const char* TAG = "Watering";
 
 // If defined sets short intervals for each section, and arms timer 1 to fire immediately
-// #define TESTING 1
+#define TESTING 1
 
 Watering::Watering(SockPtr clock, SockPtr moisture)
-    : current_state_(Idle),
-      current_section_(0),
+    : current_section_(0),
       watering_in_progress_(false),
       clock_(std::move(clock)),
       moisture_(std::move(moisture)),
@@ -60,53 +59,12 @@ void Watering::run_service() {
 
         if (data) {
             auto msg = *data;
-            update_state(msg);
+            handle_watering(msg);
         }
     }
 }
 
-
-// TODO: that could be a state machine if becomes too complex
-void Watering::update_state(const Message& msg) {
-    while (1) {
-        switch (current_state_) {
-            case Idle: {
-                auto new_state = handle_idle(msg);
-                if (new_state != current_state_) {
-                    current_state_ = new_state;
-                    continue;
-                }
-                return;
-            }
-
-            case WateringSection: {
-                auto new_state = handle_watering(msg);
-                if (new_state != current_state_) {
-                    current_state_ = new_state;
-                    continue;
-                }
-                return;
-            }
-
-            default:
-                return;
-        }
-    }
-}
-
-Watering::CurrentState Watering::handle_idle(const Message& msg) {
-    switch (msg.type) {
-        case Message::Type::Alarm1Expired:
-            ESP_LOGI(TAG, "Starting watering procedure!");
-            return WateringSection;
-
-        default:
-            ESP_LOGE(TAG, "Unexpected msg %d in idle state!", (int)msg.type);
-            return current_state_;
-    }
-}
-
-Watering::CurrentState Watering::handle_watering(const Message& msg) {
+void Watering::handle_watering(const Message& msg) {
     switch (msg.type) {
         case Message::Type::Alarm1Expired: {
             turn_off_valves();
@@ -118,13 +76,12 @@ Watering::CurrentState Watering::handle_watering(const Message& msg) {
 
             moisture_->send(req);
 
-            // arm timer
-            return current_state_;
+            return;
         }
         case Message::Type::Alarm2Expired: {
             ESP_LOGI(TAG, "Time expired for section %d", current_section_);
             switch_to_next_section();
-            return current_state_;
+            return;
         }
         case Message::Type::MoistureRes:
             ESP_LOGI(
@@ -167,11 +124,11 @@ Watering::CurrentState Watering::handle_watering(const Message& msg) {
                 }
             }
 
-            return current_state_;
+            return;
 
         default:
             ESP_LOGE(TAG, "Unexpected msg %d in watering state!", (int)msg.type);
-            return current_state_;
+            return;
     }
 }
 

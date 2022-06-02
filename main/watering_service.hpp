@@ -38,13 +38,8 @@ class Watering : public ServiceBase {
 
     static void moisture_monitor_cb(TimerHandle_t timer);
 
-    // State machine
-    enum CurrentState { Idle, WateringSection };
+    void handle_watering(const Message& msg);
 
-    CurrentState handle_idle(const Message& msg);
-    CurrentState handle_watering(const Message& msg);
-
-    CurrentState current_state_;
     int current_section_;
     bool watering_in_progress_;
     SockPtr clock_;
