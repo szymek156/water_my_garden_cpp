@@ -7,6 +7,7 @@
 #include "moisture_service.hpp"
 #include "socket.hpp"
 #include "watering_service.hpp"
+#include "wifi_service.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -55,6 +56,8 @@ void StartApplication() {
                           \        /  \ (_ o _) / |  |  \    /  |       .'     \       /  |  |    |  |
                            `'-...-'    '.(_,_).'  ''-'   `'-'   '-----'`        `'-..-'   '--'    '--'
 )foo");
+
+    start_wifi();
 
     auto watering_clock = SockPtr(new Socket(1));
     auto watering_moisture = SockPtr(new Socket(1));
