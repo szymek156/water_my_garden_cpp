@@ -19,7 +19,9 @@ struct Message {
         SetAlarm1,
         SetAlarm2,
         ClearAlarm1,
-        ClearAlarm2
+        ClearAlarm2,
+        Status
+
     } type;
 
     union {
@@ -40,6 +42,11 @@ struct Message {
         // SetAlarm1, SetAlarm2
         struct {
             struct tm alarm_tm;
+        };
+
+        // Status
+        struct {
+            char* status;
         };
     };
 };

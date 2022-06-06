@@ -22,11 +22,13 @@ static std::string date_to_str(struct tm date_tm) {
     return buf;
 }
 
-Clock::Clock(SockPtr watering)
+Clock::Clock(SockPtr watering, SockPtr web)
     : watering_(std::move(watering)),
+      web_(std::move(web)),
       interrupt_arrived_(xSemaphoreCreateBinary()) {
     xQueueAddToSet(interrupt_arrived_, queues_);
     xQueueAddToSet(watering_->get_rx(), queues_);
+    xQueueAddToSet(web_->get_rx(), queues_);
 }
 
 void Clock::run_service() {
@@ -38,7 +40,7 @@ void Clock::run_service() {
         ESP_LOGE(TAG, "Clock service is not operational! Err code %s", esp_err_to_name(ret));
     }
 
-    print_status();
+    ESP_LOGD(TAG, "%s", get_status().c_str());
     adjust_system_time();
 
     while (1) {
@@ -46,7 +48,8 @@ void Clock::run_service() {
             xQueueSelectFromSet(queues_, pdMS_TO_TICKS(10 * 60 * 1000));
 
         if (active_member == nullptr) {
-            print_status();
+            ESP_LOGD(TAG, "%s", get_status().c_str());
+
             adjust_system_time();
         }
 
@@ -127,6 +130,11 @@ void Clock::run_service() {
                         ESP_LOGE(TAG, "Unexpected msg %d from watering service!", (int)msg.type);
                 }
             }
+
+            if (active_member == web_->get_rx()) {
+                ESP_LOGI(TAG, "Status request from the web");
+                // TODO:
+            }
         }
     }
 }
@@ -198,7 +206,7 @@ err:
     return ret;
 }
 
-void Clock::print_status() {
+std::string Clock::get_status() {
     float temp;
     struct tm rtcinfo;
 

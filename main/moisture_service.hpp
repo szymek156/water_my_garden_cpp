@@ -16,7 +16,7 @@ struct MoistureMessage {
 
 class Moisture : public ServiceBase {
  public:
-    Moisture(SockPtr requestor);
+    Moisture(SockPtr requestor, SockPtr web);
     void run_service();
 
  private:
@@ -36,10 +36,11 @@ class Moisture : public ServiceBase {
     ChannelReading read_channel(adc1_channel_t channel);
     float calc_moisture(int adc_raw);
 
-    void print_status();
+    void get_status();
     esp_adc_cal_characteristics_t *_adc_chars;
     adc_bits_width_t width_;
     adc_atten_t atten_;
 
     SockPtr requestor_;
+    SockPtr web_;
 };

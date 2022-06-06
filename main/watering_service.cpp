@@ -11,15 +11,18 @@ static const char* TAG = "Watering";
 // If defined sets short intervals for each section, and arms timer 1 to fire immediately
 #define TESTING 1
 
-Watering::Watering(SockPtr clock, SockPtr moisture)
+Watering::Watering(SockPtr clock, SockPtr moisture, SockPtr web)
     : current_section_(0),
       watering_in_progress_(false),
       clock_(std::move(clock)),
       moisture_(std::move(moisture)),
+      web_(std::move(web)),
       moisture_monitor_(
           xTimerCreate("moist_monit", pdMS_TO_TICKS(1000), false, this, moisture_monitor_cb)) {
     xQueueAddToSet(clock_->get_rx(), queues_);
     xQueueAddToSet(moisture_->get_rx(), queues_);
+    xQueueAddToSet(web_->get_rx(), queues_);
+
 }
 
 void Watering::run_service() {
@@ -55,6 +58,8 @@ void Watering::run_service() {
             data = moisture_->rcv(0);
         } else if (active_member == clock_->get_rx()) {
             data = clock_->rcv(0);
+        } else if (active_member == web_->get_rx()) {
+            ESP_LOGI(TAG, "Status request from the web");
         }
 
         if (data) {

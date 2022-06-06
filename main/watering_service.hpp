@@ -7,7 +7,7 @@
 
 class Watering : public ServiceBase {
  public:
-    Watering(SockPtr clock, SockPtr moisture);
+    Watering(SockPtr clock, SockPtr moisture, SockPtr web);
 
     void run_service();
 
@@ -44,5 +44,6 @@ class Watering : public ServiceBase {
     bool watering_in_progress_;
     SockPtr clock_;
     SockPtr moisture_;
+    SockPtr web_;
     TimerHandle_t moisture_monitor_;
 };

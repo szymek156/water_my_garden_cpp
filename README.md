@@ -26,11 +26,21 @@ https://deepbluembedded.com/esp32-adc-tutorial-read-analog-voltage-arduino/
 
 [ x ] Convert 12V AC to 5V DC
 
-[ ] Assemble in the case
+[ x ] Assemble in the case
 
-[ ] Enable wifi
+[ x ] Enable wifi
 
 [ ] Start webserver to control
+
+    [ ] Q&D POC
+
+    [ ] authorization
+
+    [ ] cool REST API
+
+    [ ] https
+
+    [ ] cleanup webserver code
 
 # moisture sensor
 https://www.sigmaelectronica.net/wp-content/uploads/2018/04/sen0193-humedad-de-suelos.pdf

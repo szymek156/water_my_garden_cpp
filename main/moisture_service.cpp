@@ -28,12 +28,14 @@ static void print_char_val_type(esp_adc_cal_value_t val_type) {
     }
 }
 
-Moisture::Moisture(SockPtr requestor)
+Moisture::Moisture(SockPtr requestor, SockPtr web)
     : _adc_chars((esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t))),
       width_(ADC_WIDTH_BIT_12),
       atten_(ADC_ATTEN_DB_11),
-      requestor_(std::move(requestor)) {
+      requestor_(std::move(requestor)),
+      web_(std::move(web)) {
     xQueueAddToSet(requestor_->get_rx(), queues_);
+    xQueueAddToSet(web_->get_rx(), queues_);
 }
 
 void Moisture::run_service() {
@@ -92,8 +94,12 @@ void Moisture::run_service() {
                         break;
                 }
             }
+
+        } else if (active_member == web_->get_rx()) {
+            ESP_LOGI(TAG, "Status request from the web");
+
         } else {
-            print_status();
+            get_status();
         }
     }
 }
@@ -128,7 +134,7 @@ float Moisture::calc_moisture(int adc_raw) {
     return res;
 }
 
-void Moisture::print_status() {
+void Moisture::get_status() {
     for (auto channel : CHANNELS) {
         auto reading = read_channel(channel);
         float moisture = calc_moisture(reading.raw);

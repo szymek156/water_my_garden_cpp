@@ -7,6 +7,7 @@
 #include "moisture_service.hpp"
 #include "socket.hpp"
 #include "watering_service.hpp"
+#include "web_server.hpp"
 #include "wifi_service.hpp"
 
 #include <algorithm>
@@ -62,13 +63,22 @@ void StartApplication() {
     auto watering_clock = SockPtr(new Socket(1));
     auto watering_moisture = SockPtr(new Socket(1));
 
-    Clock clock(watering_clock->connect());
-    Moisture moisture(watering_moisture->connect());
-    Watering watering(std::move(watering_clock), std::move(watering_moisture));
+    auto web_clock = SockPtr(new Socket(1));
+    auto web_moisture = SockPtr(new Socket(1));
+    auto web_watering = SockPtr(new Socket(1));
+
+    Clock clock(watering_clock->connect(), web_clock->connect());
+    Moisture moisture(watering_moisture->connect(), web_moisture->connect());
+    Watering watering(
+        std::move(watering_clock), std::move(watering_moisture), web_watering->connect());
+
+    WebServer web_server(std::move(web_clock), std::move(web_moisture), std::move(web_watering));
 
     xTaskCreate(service<Clock>, "clock", 1024 * 4, &clock, 2, NULL);
     xTaskCreate(service<Moisture>, "moisture", 1024 * 4, &moisture, 2, NULL);
     xTaskCreate(service<Watering>, "watering", 1024 * 4, &watering, 2, NULL);
+
+    web_server.start_webserver();
 
     for (int i = 0;; i++) {
         vTaskDelay(pdMS_TO_TICKS(1000));
