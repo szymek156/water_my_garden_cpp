@@ -1,39 +1,37 @@
-#include <string.h>
-#include <time.h>
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include "i2cdev.h"
 
 #include "driver/i2c.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-#include "i2cdev.h"
+#include <string.h>
+#include <time.h>
 
 #define TAG "I2CDEV"
 
-esp_err_t i2c_master_init(i2c_port_t port, int sda, int scl)
-{
-        i2c_config_t i2c_config = {};
-        i2c_config.mode = I2C_MODE_MASTER;
-        i2c_config.sda_io_num = sda;
-        i2c_config.scl_io_num = scl;
-        i2c_config.sda_pullup_en = GPIO_PULLUP_ENABLE;
-        i2c_config.scl_pullup_en = GPIO_PULLUP_ENABLE;
-        i2c_config.master.clk_speed = 1000000;
+esp_err_t i2c_master_init(i2c_port_t port, int sda, int scl) {
+    i2c_config_t i2c_config = {};
+    i2c_config.mode = I2C_MODE_MASTER;
+    i2c_config.sda_io_num = sda;
+    i2c_config.scl_io_num = scl;
+    i2c_config.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    i2c_config.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    i2c_config.master.clk_speed = 1000000;
 
-        //i2c_param_config(I2C_NUM_0, &i2c_config);
-        //i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
-        i2c_param_config(port, &i2c_config);
-        return i2c_driver_install(port, I2C_MODE_MASTER, 0, 0, 0);
+    // i2c_param_config(I2C_NUM_0, &i2c_config);
+    // i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
+    i2c_param_config(port, &i2c_config);
+    return i2c_driver_install(port, I2C_MODE_MASTER, 0, 0, 0);
 }
 
-esp_err_t i2c_dev_read(const i2c_dev_t *dev, const void *out_data, size_t out_size, void *in_data, size_t in_size)
-{
-    if (!dev || !in_data || !in_size) return ESP_ERR_INVALID_ARG;
+esp_err_t i2c_dev_read(
+    const i2c_dev_t *dev, const void *out_data, size_t out_size, void *in_data, size_t in_size) {
+    if (!dev || !in_data || !in_size)
+        return ESP_ERR_INVALID_ARG;
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    if (out_data && out_size)
-    {
+    if (out_data && out_size) {
         i2c_master_start(cmd);
         i2c_master_write_byte(cmd, (dev->addr << 1) | I2C_MASTER_WRITE, true);
         i2c_master_write(cmd, (const uint8_t *)out_data, out_size, true);
@@ -51,9 +49,13 @@ esp_err_t i2c_dev_read(const i2c_dev_t *dev, const void *out_data, size_t out_si
     return res;
 }
 
-esp_err_t i2c_dev_write(const i2c_dev_t *dev, const void *out_reg, size_t out_reg_size, const void *out_data, size_t out_size)
-{
-    if (!dev || !out_data || !out_size) return ESP_ERR_INVALID_ARG;
+esp_err_t i2c_dev_write(const i2c_dev_t *dev,
+                        const void *out_reg,
+                        size_t out_reg_size,
+                        const void *out_data,
+                        size_t out_size) {
+    if (!dev || !out_data || !out_size)
+        return ESP_ERR_INVALID_ARG;
 
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);

@@ -48,14 +48,15 @@ void Moisture::run_service() {
         esp_adc_cal_characterize(ADC_UNIT_1, atten_, width_, DEFAULT_VREF, _adc_chars);
     print_char_val_type(val_type);
 
-    #if TESTING
-        int interval = 1000;
-    #else
-        int interval = -1;
-    #endif
+#if TESTING
+    int interval = 1000;
+#else
+    int interval = -1;
+#endif
 
     while (1) {
-        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(interval));
+        QueueSetMemberHandle_t active_member =
+            xQueueSelectFromSet(queues_, pdMS_TO_TICKS(interval));
 
         if (active_member == requestor_->get_rx()) {
             if (auto data = requestor_->rcv(0)) {
@@ -72,11 +73,11 @@ void Moisture::run_service() {
                         float moisture = calc_moisture(reading.raw);
 
                         ESP_LOGD(TAG,
-                                "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
-                                msg.section,
-                                reading.raw,
-                                reading.voltage,
-                                moisture);
+                                 "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
+                                 msg.section,
+                                 reading.raw,
+                                 reading.voltage,
+                                 moisture);
 
                         auto resp = Message{};
                         resp.type = Message::Type::MoistureRes;
@@ -127,18 +128,15 @@ float Moisture::calc_moisture(int adc_raw) {
     return res;
 }
 
-
 void Moisture::print_status() {
     for (auto channel : CHANNELS) {
-        auto  reading = read_channel(channel);
+        auto reading = read_channel(channel);
         float moisture = calc_moisture(reading.raw);
         ESP_LOGD(TAG,
-            "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
-            channel,
-            reading.raw,
-            reading.voltage,
-            moisture);
+                 "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
+                 channel,
+                 reading.raw,
+                 reading.voltage,
+                 moisture);
     }
-
-
 }

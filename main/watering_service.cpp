@@ -16,11 +16,11 @@ Watering::Watering(SockPtr clock, SockPtr moisture)
       watering_in_progress_(false),
       clock_(std::move(clock)),
       moisture_(std::move(moisture)),
-      moisture_monitor_(xTimerCreate("moist_monit", pdMS_TO_TICKS(1000), false, this, moisture_monitor_cb)) {
+      moisture_monitor_(
+          xTimerCreate("moist_monit", pdMS_TO_TICKS(1000), false, this, moisture_monitor_cb)) {
     xQueueAddToSet(clock_->get_rx(), queues_);
     xQueueAddToSet(moisture_->get_rx(), queues_);
 }
-
 
 void Watering::run_service() {
     ESP_LOGI(TAG, "Service started");
@@ -30,21 +30,21 @@ void Watering::run_service() {
 
     struct tm alarm_tm = {};
 
-    #if TESTING
-        time_t now;
-        time(&now);
+#if TESTING
+    time_t now;
+    time(&now);
 
-        // Start in next 5 seconds
-        now += 5;
+    // Start in next 5 seconds
+    now += 5;
 
-        localtime_r(&now, &alarm_tm);
-    #else
-        alarm_tm.tm_hour = 21;
-        alarm_tm.tm_min = 55;
-        alarm_tm.tm_sec = 00;
-    #endif
+    localtime_r(&now, &alarm_tm);
+#else
+    alarm_tm.tm_hour = 21;
+    alarm_tm.tm_min = 55;
+    alarm_tm.tm_sec = 00;
+#endif
 
-        set_the_alarm(alarm_tm);
+    set_the_alarm(alarm_tm);
 
     while (1) {
         QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(-1));
@@ -105,12 +105,13 @@ void Watering::handle_watering(const Message& msg) {
                     time_t now;
                     time(&now);
 
-                    #if TESTING
-                        // Alarm 2 has minute resolution, add residual to make sure, at least one minute passed
-                        now += 60 + now % 60;
-                    #else
-                        now += 15 * 60;
-                    #endif
+#if TESTING
+                    // Alarm 2 has minute resolution, add residual to make sure, at least one minute
+                    // passed
+                    now += 60 + now % 60;
+#else
+                    now += 15 * 60;
+#endif
 
                     localtime_r(&now, &alarm_tm);
 
@@ -192,7 +193,6 @@ void Watering::switch_section(struct tm alarm_tm) {
     clock_->send(msg);
 }
 
-
 void Watering::turn_off_valves() {
     ESP_LOGI(TAG, "Disabling valves");
     for (auto section : sections_) {
@@ -212,7 +212,7 @@ void Watering::on_moisture_monitor_expire() {
 void Watering::moisture_monitor_cb(TimerHandle_t timer) {
     ESP_LOGI("moisture_timer_cb", "Timer expired!");
     // Naming is unfortunate, we need to live with it
-    auto service = (Watering *)pvTimerGetTimerID(timer);
+    auto service = (Watering*)pvTimerGetTimerID(timer);
 
     service->on_moisture_monitor_expire();
 }
@@ -237,17 +237,17 @@ void Watering::switch_to_next_section() {
 
         current_section_ = 0;
 
-        #if TESTING
-            struct tm alarm_tm = {};
-            time_t now;
-            time(&now);
+#if TESTING
+        struct tm alarm_tm = {};
+        time_t now;
+        time(&now);
 
-            // Start in next 5 seconds
-            now += 5;
+        // Start in next 5 seconds
+        now += 5;
 
-            localtime_r(&now, &alarm_tm);
-            set_the_alarm(alarm_tm);
-        #endif
+        localtime_r(&now, &alarm_tm);
+        set_the_alarm(alarm_tm);
+#endif
     }
 
     auto clear_alarm = Message{};

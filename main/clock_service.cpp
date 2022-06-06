@@ -2,15 +2,15 @@
 
 #include "ds3231.h"
 
+#include <ctime>
+
 #include <esp_check.h>
 #include <esp_log.h>
-#include <ctime>
 
 static const char* TAG = "Clock";
 static const gpio_num_t RTC_SDA = (gpio_num_t)21;
 static const gpio_num_t RTC_SCL = (gpio_num_t)22;
 static const gpio_num_t INT_PIN = (gpio_num_t)23;
-
 
 static std::string date_to_str(struct tm date_tm) {
     date_tm.tm_year -= 1900;
@@ -18,7 +18,6 @@ static std::string date_to_str(struct tm date_tm) {
     std::string buf;
     buf.reserve(128);
     strftime(buf.data(), 128, "%F %T", &date_tm);
-
 
     return buf;
 }
@@ -43,7 +42,8 @@ void Clock::run_service() {
     adjust_system_time();
 
     while (1) {
-        QueueSetMemberHandle_t active_member = xQueueSelectFromSet(queues_, pdMS_TO_TICKS(10 * 60 * 1000));
+        QueueSetMemberHandle_t active_member =
+            xQueueSelectFromSet(queues_, pdMS_TO_TICKS(10 * 60 * 1000));
 
         if (active_member == nullptr) {
             print_status();
@@ -92,11 +92,11 @@ void Clock::run_service() {
 
                         ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_1);
                         ds3231_set_alarm(&dev_,
-                                       DS3231_ALARM_1,
-                                       &msg.alarm_tm,
-                                       DS3231_ALARM1_MATCH_SECMINHOUR,
-                                       nullptr,
-                                       (ds3231_alarm2_rate_t)0);
+                                         DS3231_ALARM_1,
+                                         &msg.alarm_tm,
+                                         DS3231_ALARM1_MATCH_SECMINHOUR,
+                                         nullptr,
+                                         (ds3231_alarm2_rate_t)0);
                         break;
                     }
 
@@ -106,11 +106,11 @@ void Clock::run_service() {
                         // Enable interrupt, might be disabled in previous clear call
                         ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_2);
                         ds3231_set_alarm(&dev_,
-                            DS3231_ALARM_2,
-                            nullptr,
-                            (ds3231_alarm1_rate_t)0,
-                            &msg.alarm_tm,
-                            DS3231_ALARM2_MATCH_MINHOUR);
+                                         DS3231_ALARM_2,
+                                         nullptr,
+                                         (ds3231_alarm1_rate_t)0,
+                                         &msg.alarm_tm,
+                                         DS3231_ALARM2_MATCH_MINHOUR);
                         break;
                     }
                     case Message::Type::ClearAlarm1: {
@@ -176,8 +176,12 @@ esp_err_t Clock::init_rtc() {
     ESP_GOTO_ON_ERROR(
         ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_NONE), err, TAG, "Failed to enable interrupt");
 
-    // TODO: There is a bug in call above, ALARM_NONE is 0, and setting 0 bits is ignored, so disable ints manually
-    ESP_GOTO_ON_ERROR(ds3231_disable_alarm_ints(&dev_, DS3231_ALARM_BOTH), err, TAG, "Failed to disable alarm ints");
+    // TODO: There is a bug in call above, ALARM_NONE is 0, and setting 0 bits is ignored, so
+    // disable ints manually
+    ESP_GOTO_ON_ERROR(ds3231_disable_alarm_ints(&dev_, DS3231_ALARM_BOTH),
+                      err,
+                      TAG,
+                      "Failed to disable alarm ints");
 
     // Setup GPIO pin to be ready to receive interrupts
     ESP_GOTO_ON_ERROR(gpio_config(&io_conf), err, TAG, "Failed to setup gpio");
@@ -213,20 +217,22 @@ void Clock::print_status() {
     uint8_t status = 0;
     ds3231_get_status(&dev_, &status);
 
-    //  7        6           5             4           3            2                    1                  0
-    // osc en| sqw en | convert temp | sqw rate2 | sqw rate 1 | INT/SQW switch | alarm 2 int enable | alarm 1 int enable
+    //  7        6           5             4           3            2                    1 0
+    // osc en| sqw en | convert temp | sqw rate2 | sqw rate 1 | INT/SQW switch | alarm 2 int enable
+    // | alarm 1 int enable
     uint8_t ctrl;
     ds3231_get_control(&dev_, &ctrl);
     ESP_LOGD(TAG, "Status reg 0x%02X ctrl 0x%02X", status, ctrl);
-    ESP_LOGD(TAG, "Alarm1 expired: %s Alarm1 int enabled %s", status & 0x1 ? "true" : "false",
-                ctrl & 0x1 ? "true" : "false");
-    ESP_LOGD(TAG, "Alarm2 expired: %s Alarm2 int enabled %s", status & 0x2 ? "true" : "false",
-                ctrl & 0x2 ? "true" : "false");
+    ESP_LOGD(TAG,
+             "Alarm1 expired: %s Alarm1 int enabled %s",
+             status & 0x1 ? "true" : "false",
+             ctrl & 0x1 ? "true" : "false");
+    ESP_LOGD(TAG,
+             "Alarm2 expired: %s Alarm2 int enabled %s",
+             status & 0x2 ? "true" : "false",
+             ctrl & 0x2 ? "true" : "false");
 
-    ESP_LOGD(pcTaskGetName(0),
-            "%s, %.2f deg Cel",
-            date_to_str(rtcinfo).c_str(),
-            temp);
+    ESP_LOGD(pcTaskGetName(0), "%s, %.2f deg Cel", date_to_str(rtcinfo).c_str(), temp);
 }
 
 // @brief Use RTC time and hammer system clock to it
