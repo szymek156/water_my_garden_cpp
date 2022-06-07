@@ -1,8 +1,8 @@
 # water_my_garden_cpp
 will RIIR later, now my garden dries out, need to do it fast!
-![285891608_3337123606517733_815334365603212199_n](https://user-images.githubusercontent.com/1136779/172473788-cb709ec7-fafa-4fea-adef-954032477c84.jpg)
-![286076194_2646548522155910_2422992089338040563_n](https://user-images.githubusercontent.com/1136779/172473802-e5e4e7a6-0cc4-49eb-9eca-fc8e8e3cd3b3.jpg)
+<img src="https://user-images.githubusercontent.com/1136779/172473788-cb709ec7-fafa-4fea-adef-954032477c84.jpg" alt="drawing" width="300"/>
 
+<img src="https://user-images.githubusercontent.com/1136779/172473802-e5e4e7a6-0cc4-49eb-9eca-fc8e8e3cd3b3.jpg" alt="drawing" width="300"/>
 
 ## PINOUT
 https://randomnerdtutorials.com/esp32-pinout-reference-gpios/
