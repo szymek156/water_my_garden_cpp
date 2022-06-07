@@ -81,8 +81,8 @@ class Socket {
         return SockPtr(new Socket(tx_, rx_));
     }
 
-    BaseType_t send(Message req) {
-        return xQueueSendToBack(tx_, &req, 0);
+    BaseType_t send(Message msg) {
+        return xQueueSendToBack(tx_, &msg, 0);
     }
 
     std::optional<Message> rcv(int timeout) {

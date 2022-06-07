@@ -35,7 +35,7 @@ static esp_err_t status_get_handler(httpd_req_t* req) {
     ESP_LOGD(TAG, "Get watering status...");
     resp += ctx->get_watering_status();
 
-    ESP_LOGD(TAG, "system status response %s", resp.c_str());
+    ESP_LOGD(TAG, "system status response '%s'", resp.c_str());
 
     // TODO: be a json someday
     httpd_resp_send(req, resp.c_str(), HTTPD_RESP_USE_STRLEN);
@@ -59,9 +59,11 @@ std::string WebServer::get_clock_status() {
 
     clock_->send(msg);
 
-    if (auto data = moisture_->rcv(pdMS_TO_TICKS(500))) {
+    if (auto data = clock_->rcv(pdMS_TO_TICKS(500))) {
         auto msg = *data;
-        return msg.status;
+        auto guard = std::unique_ptr<char []>(msg.status);
+
+        return guard.get();
     }
 
     return "Failed to get clock status";
@@ -75,7 +77,16 @@ std::string WebServer::get_moisture_status() {
 
     if (auto data = moisture_->rcv(pdMS_TO_TICKS(500))) {
         auto msg = *data;
-        return msg.status;
+        // Some crazy/ugly stuff is going there.
+        // In union there cannot be anything that has constructor/dtor
+        // so only option is to pass char * that is allocated.
+        // To avoid memleaks I need to wrap it in unique_ptr
+        // Returning data() will call std::string ctor that will copy the
+        // content, and return. Shortly after guard gets deleted.
+        // All of that could be avoided if move semantics would be implicit
+        // As it is in... ekhm Rust, ekhm.
+        auto guard = std::unique_ptr<char []>(msg.status);
+        return guard.get();
     }
 
     return "Failed to get moisture status";
@@ -87,9 +98,11 @@ std::string WebServer::get_watering_status() {
 
     watering_->send(msg);
 
-    if (auto data = moisture_->rcv(pdMS_TO_TICKS(500))) {
+    if (auto data = watering_->rcv(pdMS_TO_TICKS(500))) {
         auto msg = *data;
-        return msg.status;
+        auto guard = std::unique_ptr<char []>(msg.status);
+
+        return guard.get();
     }
 
     return "Failed to get watering status";

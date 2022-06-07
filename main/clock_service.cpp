@@ -5,6 +5,7 @@
 #include <ctime>
 
 #include <esp_check.h>
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include <esp_log.h>
 
 static const char* TAG = "Clock";
@@ -40,7 +41,7 @@ void Clock::run_service() {
         ESP_LOGE(TAG, "Clock service is not operational! Err code %s", esp_err_to_name(ret));
     }
 
-    ESP_LOGD(TAG, "%s", get_status().c_str());
+    ESP_LOGD(TAG, "%s", get_status().get());
     adjust_system_time();
 
     while (1) {
@@ -48,7 +49,7 @@ void Clock::run_service() {
             xQueueSelectFromSet(queues_, pdMS_TO_TICKS(10 * 60 * 1000));
 
         if (active_member == nullptr) {
-            ESP_LOGD(TAG, "%s", get_status().c_str());
+            ESP_LOGD(TAG, "%s", get_status().get());
 
             adjust_system_time();
         }
@@ -130,10 +131,24 @@ void Clock::run_service() {
                         ESP_LOGE(TAG, "Unexpected msg %d from watering service!", (int)msg.type);
                 }
             }
+        }
 
-            if (active_member == web_->get_rx()) {
-                ESP_LOGI(TAG, "Status request from the web");
-                // TODO:
+        if (active_member == web_->get_rx()) {
+            if (auto data = web_->rcv(0)) {
+                auto msg = *data;
+
+                switch (msg.type) {
+                    case Message::Type::Status: {
+                        ESP_LOGI(TAG, "Status request from the web");
+                        Message resp = {};
+                        resp.type = Message::Type::Status;
+                        resp.status = get_status().release();
+
+                        web_->send(resp);
+                    }
+                    default:
+                        break;
+                }
             }
         }
     }
@@ -147,17 +162,17 @@ void Clock::int_handler(void* arg) {
 
     xSemaphoreGiveFromISR(that->interrupt_arrived_, &higher_prio_was_woken);
 
-    // It is possible (although unlikely, and dependent on the semaphore type) that a semaphore will
-    // have one or more tasks blocked on it waiting to give the semaphore. Calling
-    // xSemaphoreTakeFromISR() will make a task that was blocked waiting to give the semaphore leave
-    // the Blocked state. If calling the API function causes a task to leave the Blocked state, and
-    // the unblocked task has a priority equal to or higher than the currently executing task (the
-    // task that was interrupted), then, internally, the API function will set
-    // *pxHigherPriorityTaskWoken to pdTRUE.
+    // It is possible (although unlikely, and dependent on the semaphore type) that a semaphore
+    // will have one or more tasks blocked on it waiting to give the semaphore. Calling
+    // xSemaphoreTakeFromISR() will make a task that was blocked waiting to give the semaphore
+    // leave the Blocked state. If calling the API function causes a task to leave the Blocked
+    // state, and the unblocked task has a priority equal to or higher than the currently
+    // executing task (the task that was interrupted), then, internally, the API function will
+    // set *pxHigherPriorityTaskWoken to pdTRUE.
 
-    // If xSemaphoreTakeFromISR() sets *pxHigherPriorityTaskWoken to pdTRUE, then a context switch
-    // should be performed before the interrupt is exited. This will ensure that the interrupt
-    // returns directly to the highest priority Ready state task
+    // If xSemaphoreTakeFromISR() sets *pxHigherPriorityTaskWoken to pdTRUE, then a context
+    // switch should be performed before the interrupt is exited. This will ensure that the
+    // interrupt returns directly to the highest priority Ready state task
     portYIELD_FROM_ISR(higher_prio_was_woken);
 }
 
@@ -206,18 +221,31 @@ err:
     return ret;
 }
 
-std::string Clock::get_status() {
+std::unique_ptr<char[]> Clock::get_status() {
     float temp;
     struct tm rtcinfo;
 
+    // C++ string formatting using streams is so ugly I cannot stand it,
+    // on the other hand std::format is not there, so only option left
+    // is to use old C API
+    // const int RES_SIZE = 1024;
+    // char res[RES_SIZE];
+
     if (ds3231_get_temp_float(&dev_, &temp) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not get temperature.");
-        return;
+        char* err = nullptr;
+        asprintf(&err, "%s", "Could not get temperature.");
+        ESP_LOGE(TAG, "%s", err);
+
+        // Argument template deduction failed, that's so pathetic!
+        return std::unique_ptr<char[]>(err);
     }
 
     if (ds3231_get_time(&dev_, &rtcinfo) != ESP_OK) {
-        ESP_LOGE(pcTaskGetName(0), "Could not get time.");
-        return;
+        char* err = nullptr;
+        asprintf(&err, "%s", "Could not get time.");
+
+        ESP_LOGE(TAG, "%s", err);
+        return std::unique_ptr<char[]>(err);
     }
 
     //     7        6    5    4        3            2       1             0
@@ -226,21 +254,40 @@ std::string Clock::get_status() {
     ds3231_get_status(&dev_, &status);
 
     //  7        6           5             4           3            2                    1 0
-    // osc en| sqw en | convert temp | sqw rate2 | sqw rate 1 | INT/SQW switch | alarm 2 int enable
-    // | alarm 1 int enable
+    // osc en| sqw en | convert temp | sqw rate2 | sqw rate 1 | INT/SQW switch | alarm 2 int
+    // enable | alarm 1 int enable
     uint8_t ctrl;
     ds3231_get_control(&dev_, &ctrl);
-    ESP_LOGD(TAG, "Status reg 0x%02X ctrl 0x%02X", status, ctrl);
-    ESP_LOGD(TAG,
-             "Alarm1 expired: %s Alarm1 int enabled %s",
-             status & 0x1 ? "true" : "false",
-             ctrl & 0x1 ? "true" : "false");
-    ESP_LOGD(TAG,
-             "Alarm2 expired: %s Alarm2 int enabled %s",
-             status & 0x2 ? "true" : "false",
-             ctrl & 0x2 ? "true" : "false");
 
-    ESP_LOGD(pcTaskGetName(0), "%s, %.2f deg Cel", date_to_str(rtcinfo).c_str(), temp);
+    // ESP_LOGD(TAG, "Status reg 0x%02X ctrl 0x%02X", status, ctrl);
+    // ESP_LOGD(TAG,
+    //          "Alarm1 expired: %s Alarm1 int enabled %s",
+    //          status & 0x1 ? "true" : "false",
+    //          ctrl & 0x1 ? "true" : "false");
+    // ESP_LOGD(TAG,
+    //          "Alarm2 expired: %s Alarm2 int enabled %s",
+    //          status & 0x2 ? "true" : "false",
+    //          ctrl & 0x2 ? "true" : "false");
+
+    // ESP_LOGD(pcTaskGetName(0), "%s, %.2f deg Cel", date_to_str(rtcinfo).c_str(), temp);
+
+    char* res = nullptr;
+    asprintf(&res,
+             "CLOCK:\n"
+             "Status reg 0x%02X ctrl 0x%02X\n"
+             "Alarm1 expired: %s Alarm1 int enabled %s\n"
+             "Alarm2 expired: %s Alarm2 int enabled %s\n"
+             "%s, %.2f deg Cel\n",
+             status,
+             ctrl,
+             status & 0x1 ? "true" : "false",
+             ctrl & 0x1 ? "true" : "false",
+             status & 0x2 ? "true" : "false",
+             ctrl & 0x2 ? "true" : "false",
+             date_to_str(rtcinfo).c_str(),
+             temp);
+
+    return std::unique_ptr<char[]>(res);
 }
 
 // @brief Use RTC time and hammer system clock to it

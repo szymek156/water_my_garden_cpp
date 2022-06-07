@@ -5,6 +5,7 @@
 
 #include <freertos/semphr.h>
 #include <i2cdev.h>
+#include <memory>
 
 class Clock : public ServiceBase {
  public:
@@ -15,7 +16,7 @@ class Clock : public ServiceBase {
     static void int_handler(void* arg);
 
     esp_err_t init_rtc();
-    std::string get_status();
+    std::unique_ptr<char []>  get_status();
     void adjust_system_time();
 
     i2c_dev_t dev_;

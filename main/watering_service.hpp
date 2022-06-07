@@ -3,6 +3,7 @@
 
 #include <driver/gpio.h>
 #include <array>
+#include <memory>
 #include <freertos/timers.h>
 
 class Watering : public ServiceBase {
@@ -39,6 +40,8 @@ class Watering : public ServiceBase {
     static void moisture_monitor_cb(TimerHandle_t timer);
 
     void handle_watering(const Message& msg);
+
+    std::unique_ptr<char[]> get_status();
 
     int current_section_;
     bool watering_in_progress_;

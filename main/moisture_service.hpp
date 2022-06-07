@@ -4,7 +4,7 @@
 #include "socket.hpp"
 
 #include <cstdint>
-
+#include <memory>
 #include <driver/adc.h>
 #include <esp_adc_cal.h>
 #include <freertos/queue.h>
@@ -36,7 +36,7 @@ class Moisture : public ServiceBase {
     ChannelReading read_channel(adc1_channel_t channel);
     float calc_moisture(int adc_raw);
 
-    void get_status();
+    std::unique_ptr<char[]> get_status();
     esp_adc_cal_characteristics_t *_adc_chars;
     adc_bits_width_t width_;
     adc_atten_t atten_;

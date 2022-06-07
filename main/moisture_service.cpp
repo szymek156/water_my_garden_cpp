@@ -96,10 +96,25 @@ void Moisture::run_service() {
             }
 
         } else if (active_member == web_->get_rx()) {
-            ESP_LOGI(TAG, "Status request from the web");
+            if (auto data = web_->rcv(0)) {
+                auto msg = *data;
+
+                switch (msg.type) {
+                    case Message::Type::Status: {
+                        ESP_LOGI(TAG, "Status request from the web");
+                        Message resp = {};
+                        resp.type = Message::Type::Status;
+                        resp.status = get_status().release();
+
+                        web_->send(resp);
+                    }
+                    default:
+                        break;
+                }
+            }
 
         } else {
-            get_status();
+            ESP_LOGD(TAG, "%s", get_status().get());
         }
     }
 }
@@ -134,15 +149,24 @@ float Moisture::calc_moisture(int adc_raw) {
     return res;
 }
 
-void Moisture::get_status() {
-    for (auto channel : CHANNELS) {
+std::unique_ptr<char[]> Moisture::get_status() {
+    std::string tmp = "MOISTURE\n";
+
+    for (int section = 0; section < CHANNELS_SIZE; section++) {
+        auto channel = CHANNELS[section];
+
         auto reading = read_channel(channel);
         float moisture = calc_moisture(reading.raw);
-        ESP_LOGD(TAG,
-                 "Channel %d raw: %d\tVoltage: %dmV moisture %f%%",
-                 channel,
-                 reading.raw,
-                 reading.voltage,
-                 moisture);
+
+        // Bring that goddam std::format finally!
+        tmp += std::string("Section: ") + std::to_string(section) +
+               " raw: " + std::to_string(reading.raw) +
+               " Voltage: " + std::to_string(reading.voltage) + "mV moisture " +
+               std::to_string(moisture) + "%\n";
     }
+
+    char *res = nullptr;
+    asprintf(&res, "%s", tmp.c_str());
+
+    return std::unique_ptr<char[]>(res);
 }

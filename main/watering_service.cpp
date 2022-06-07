@@ -1,7 +1,7 @@
 #include "watering_service.hpp"
 
 #include <cmath>
-
+#include <chrono>
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -22,7 +22,6 @@ Watering::Watering(SockPtr clock, SockPtr moisture, SockPtr web)
     xQueueAddToSet(clock_->get_rx(), queues_);
     xQueueAddToSet(moisture_->get_rx(), queues_);
     xQueueAddToSet(web_->get_rx(), queues_);
-
 }
 
 void Watering::run_service() {
@@ -59,7 +58,23 @@ void Watering::run_service() {
         } else if (active_member == clock_->get_rx()) {
             data = clock_->rcv(0);
         } else if (active_member == web_->get_rx()) {
-            ESP_LOGI(TAG, "Status request from the web");
+            if (auto web_data = web_->rcv(0)) {
+                auto msg = *web_data;
+
+                switch (msg.type) {
+                    case Message::Type::Status: {
+                        ESP_LOGI(TAG, "Status request from the web");
+                        Message resp = {};
+                        resp.type = Message::Type::Status;
+                        resp.status = get_status().release();
+
+                        web_->send(resp);
+                        break;
+                    }
+                    default:
+                        break;
+                }
+            }
         }
 
         if (data) {
@@ -136,6 +151,41 @@ void Watering::handle_watering(const Message& msg) {
             ESP_LOGE(TAG, "Unexpected msg %d in watering state!", (int)msg.type);
             return;
     }
+}
+
+std::unique_ptr<char[]> Watering::get_status() {
+    char* res = nullptr;
+
+    // TODO: that should be in OS or something
+    auto total = heap_caps_get_total_size(MALLOC_CAP_DEFAULT);
+
+    multi_heap_info_t info = {};
+    heap_caps_get_info(&info, MALLOC_CAP_DEFAULT);
+
+    auto uptime = std::chrono::milliseconds(pdTICKS_TO_MS(xTaskGetTickCount()));
+
+    asprintf(
+        &res,
+        "WATERING\n"
+        "Current section %d\n"
+        "Watering in progress %d\n"
+        "Uptime %llddays %lldh %lldm %llds\n"
+        "RAM total %f, allocated: %f, free: %f, used: %f, largest possible block to allocate: %f",
+        current_section_,
+        watering_in_progress_,
+        // Another crap that is missing, chrono formatter
+        std::chrono::duration_cast<std::chrono::hours>(uptime).count() / 24,
+        std::chrono::duration_cast<std::chrono::hours>(uptime).count(),
+        std::chrono::duration_cast<std::chrono::minutes>(uptime).count() % 60,
+        std::chrono::duration_cast<std::chrono::seconds>(uptime).count() % 60,
+
+        total / 1024.0f,
+        info.total_allocated_bytes / 1024.0f,
+        info.total_free_bytes / 1024.0f,
+        info.total_allocated_bytes / (float)total,
+        info.largest_free_block / 1024.0f);
+
+    return std::unique_ptr<char[]>(res);
 }
 
 void Watering::setup_gpio() {
