@@ -1,6 +1,10 @@
 # water_my_garden_cpp
 will RIIR later, now my garden dries out, need to do it fast!
 
+![285891608_3337123606517733_815334365603212199_n](https://user-images.githubusercontent.com/1136779/172473611-b75eebb1-68cb-4e56-8371-bc4b2f8a09ae.jpg)
+
+![286076194_2646548522155910_2422992089338040563_n](https://user-images.githubusercontent.com/1136779/172473625-b6bbc10d-5f78-4fd2-99e0-4b2dbebc4fdc.jpg)
+
 ## PINOUT
 https://randomnerdtutorials.com/esp32-pinout-reference-gpios/
 
@@ -32,7 +36,7 @@ https://deepbluembedded.com/esp32-adc-tutorial-read-analog-voltage-arduino/
 
 [ ] Start webserver to control
 
-    [ ] Q&D POC
+    [ x ] Q&D POC
 
     [ ] authorization
 
