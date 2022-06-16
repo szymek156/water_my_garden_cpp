@@ -13,13 +13,15 @@ class Watering : public ServiceBase {
     void run_service();
 
  private:
-    static const gpio_num_t SECTION_ONE = (gpio_num_t)14;
-    static const gpio_num_t SECTION_TWO = (gpio_num_t)27;
-    static const gpio_num_t SECTION_THREE = (gpio_num_t)26;
-    static const gpio_num_t SECTION_FOUR = (gpio_num_t)33;
+    static const gpio_num_t SECTION_VEGS = (gpio_num_t)14;
+    static const gpio_num_t SECTION_TERRACE = (gpio_num_t)27;
+    static const gpio_num_t SECTION_FLOWERS = (gpio_num_t)26;
+    static const gpio_num_t SECTION_GRASS = (gpio_num_t)33;
 
    static const int SECTION_SIZE = 4;
-   static constexpr std::array<gpio_num_t, SECTION_SIZE> sections_ = {SECTION_ONE, SECTION_TWO, SECTION_THREE, SECTION_FOUR};
+   static constexpr std::array<gpio_num_t, SECTION_SIZE> sections_ = {SECTION_VEGS, SECTION_TERRACE, SECTION_FLOWERS, SECTION_GRASS};
+   static constexpr std::array<const char *, SECTION_SIZE> sections_names_ = {"Vegetables", "Terrace", "Flowers", "Grass"};
+   static constexpr std::array<int, SECTION_SIZE> sections_time_ = {60 * 5, 61, 10*60, 20 * 60};
 
     // TODO: add pulldown resistor?
     static const int TURN_ON = 0;

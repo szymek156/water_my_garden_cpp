@@ -258,3 +258,66 @@ esp_err_t ds3231_get_time(i2c_dev_t *dev, struct tm *time) {
 
     return ESP_OK;
 }
+
+// @brief get alarm 1 time in human readable format
+esp_err_t ds3231_get_alarm1(i2c_dev_t *dev, struct tm *time) {
+    CHECK_ARG(dev);
+    CHECK_ARG(time);
+
+    uint8_t data[4];
+
+    /* read time */
+    esp_err_t res = i2c_dev_read_reg(dev, DS3231_ADDR_ALARM1, data, 4);
+    if (res != ESP_OK)
+        return res;
+
+    /* convert to unix time structure */
+    time->tm_sec = bcd2dec(data[0]);
+    time->tm_min = bcd2dec(data[1]);
+    if (data[2] & DS3231_12HOUR_FLAG) {
+        /* 12H */
+        time->tm_hour = bcd2dec(data[2] & DS3231_12HOUR_MASK) - 1;
+        /* AM/PM? */
+        if (data[2] & DS3231_PM_FLAG) {
+            time->tm_hour += 12;
+        }
+
+    } else {
+        time->tm_hour = bcd2dec(data[2]); /* 24H */
+    }
+
+    // TODO: last register contains day/date information, but watering uses only hour:min:sec
+
+    return ESP_OK;
+}
+
+// @brief get alarm 2 time in human readable format
+esp_err_t ds3231_get_alarm2(i2c_dev_t *dev, struct tm *time) {
+    CHECK_ARG(dev);
+    CHECK_ARG(time);
+
+    uint8_t data[3];
+
+    /* read time */
+    esp_err_t res = i2c_dev_read_reg(dev, DS3231_ADDR_ALARM2, data, 3);
+    if (res != ESP_OK)
+        return res;
+
+    /* convert to unix time structure */
+    time->tm_sec = 0;
+    time->tm_min = bcd2dec(data[0]);
+    if (data[2] & DS3231_12HOUR_FLAG) {
+        /* 12H */
+        time->tm_hour = bcd2dec(data[1] & DS3231_12HOUR_MASK) - 1;
+        /* AM/PM? */
+        if (data[2] & DS3231_PM_FLAG) {
+            time->tm_hour += 12;
+        }
+    } else {
+        time->tm_hour = bcd2dec(data[1]); /* 24H */
+    }
+
+    // TODO: last register contains day/date information, but watering uses only hour:min
+
+    return ESP_OK;
+}

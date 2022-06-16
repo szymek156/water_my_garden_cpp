@@ -87,6 +87,9 @@ esp_err_t ds3231_get_temp_integer(i2c_dev_t *dev, int8_t *temp);
 esp_err_t ds3231_get_temp_float(i2c_dev_t *dev, float *temp);
 esp_err_t ds3231_get_time(i2c_dev_t *dev, struct tm *time);
 
+esp_err_t ds3231_get_alarm1(i2c_dev_t *dev, struct tm *time);
+esp_err_t ds3231_get_alarm2(i2c_dev_t *dev, struct tm *time);
+
 esp_err_t ds3231_set_alarm(i2c_dev_t *dev, ds3231_alarm_t alarms, struct tm *time1,
         ds3231_alarm1_rate_t option1, struct tm *time2, ds3231_alarm2_rate_t option2);
 esp_err_t ds3231_get_alarm_flags(i2c_dev_t *dev, ds3231_alarm_t *alarms);

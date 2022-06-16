@@ -9,7 +9,7 @@
 static const char* TAG = "Watering";
 
 // If defined sets short intervals for each section, and arms timer 1 to fire immediately
-#define TESTING 1
+// #define TESTING 1
 
 Watering::Watering(SockPtr clock, SockPtr moisture, SockPtr web)
     : current_section_(0),
@@ -41,8 +41,9 @@ void Watering::run_service() {
 
     localtime_r(&now, &alarm_tm);
 #else
-    alarm_tm.tm_hour = 21;
-    alarm_tm.tm_min = 55;
+//22 09
+    alarm_tm.tm_hour = 20;
+    alarm_tm.tm_min = 9;
     alarm_tm.tm_sec = 00;
 #endif
 
@@ -130,7 +131,9 @@ void Watering::handle_watering(const Message& msg) {
                     // passed
                     now += 60 + now % 60;
 #else
-                    now += 15 * 60;
+
+                    now += sections_time_[current_section_];
+
 #endif
 
                     localtime_r(&now, &alarm_tm);
@@ -167,15 +170,15 @@ std::unique_ptr<char[]> Watering::get_status() {
     asprintf(
         &res,
         "WATERING\n"
-        "Current section %d\n"
-        "Watering in progress %d\n"
+        "Current section %s (%d)\n"
+        "Watering in progress %s\n"
         "Uptime %llddays %lldh %lldm %llds\n"
         "RAM total %f, allocated: %f, free: %f, used: %f, largest possible block to allocate: %f",
-        current_section_,
-        watering_in_progress_,
+        sections_names_[current_section_], current_section_,
+        watering_in_progress_ ? "YEP" : "NOPE",
         // Another crap that is missing, chrono formatter
         std::chrono::duration_cast<std::chrono::hours>(uptime).count() / 24,
-        std::chrono::duration_cast<std::chrono::hours>(uptime).count(),
+        std::chrono::duration_cast<std::chrono::hours>(uptime).count() % 24,
         std::chrono::duration_cast<std::chrono::minutes>(uptime).count() % 60,
         std::chrono::duration_cast<std::chrono::seconds>(uptime).count() % 60,
 
@@ -203,19 +206,19 @@ void Watering::setup_gpio() {
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     // configure GPIO with the given settings
     ESP_ERROR_CHECK(gpio_config(&io_conf));
-    ESP_ERROR_CHECK(gpio_set_level(SECTION_ONE, TURN_OFF));
+    ESP_ERROR_CHECK(gpio_set_level(SECTION_VEGS, TURN_OFF));
 
     io_conf.pin_bit_mask = GPIO_SEL_27;
     ESP_ERROR_CHECK(gpio_config(&io_conf));
-    ESP_ERROR_CHECK(gpio_set_level(SECTION_TWO, TURN_OFF));
+    ESP_ERROR_CHECK(gpio_set_level(SECTION_TERRACE, TURN_OFF));
 
     io_conf.pin_bit_mask = GPIO_SEL_26;
     ESP_ERROR_CHECK(gpio_config(&io_conf));
-    ESP_ERROR_CHECK(gpio_set_level(SECTION_THREE, TURN_OFF));
+    ESP_ERROR_CHECK(gpio_set_level(SECTION_FLOWERS, TURN_OFF));
 
     io_conf.pin_bit_mask = GPIO_SEL_33;
     ESP_ERROR_CHECK(gpio_config(&io_conf));
-    ESP_ERROR_CHECK(gpio_set_level(SECTION_FOUR, TURN_OFF));
+    ESP_ERROR_CHECK(gpio_set_level(SECTION_GRASS, TURN_OFF));
 }
 
 void Watering::say_hello() {

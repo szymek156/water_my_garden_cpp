@@ -13,12 +13,12 @@ static const gpio_num_t RTC_SDA = (gpio_num_t)21;
 static const gpio_num_t RTC_SCL = (gpio_num_t)22;
 static const gpio_num_t INT_PIN = (gpio_num_t)23;
 
-static std::string date_to_str(struct tm date_tm) {
+static std::string tm_to_str(struct tm date_tm, const char *format = "%H:%M:%S") {
     date_tm.tm_year -= 1900;
 
     std::string buf;
     buf.reserve(128);
-    strftime(buf.data(), 128, "%F %T", &date_tm);
+    strftime(buf.data(), 128, format, &date_tm);
 
     return buf;
 }
@@ -92,7 +92,7 @@ void Clock::run_service() {
 
                 switch (msg.type) {
                     case Message::Type::SetAlarm1: {
-                        ESP_LOGI(TAG, "SetAlarm1! %s", date_to_str(msg.alarm_tm).c_str());
+                        ESP_LOGI(TAG, "SetAlarm1! %s", tm_to_str(msg.alarm_tm).c_str());
 
                         ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_1);
                         ds3231_set_alarm(&dev_,
@@ -105,7 +105,7 @@ void Clock::run_service() {
                     }
 
                     case Message::Type::SetAlarm2: {
-                        ESP_LOGI(TAG, "SetAlarm2! %s", date_to_str(msg.alarm_tm).c_str());
+                        ESP_LOGI(TAG, "SetAlarm2! %s", tm_to_str(msg.alarm_tm).c_str());
 
                         // Enable interrupt, might be disabled in previous clear call
                         ds3231_enable_alarm_ints(&dev_, DS3231_ALARM_2);
@@ -225,11 +225,12 @@ std::unique_ptr<char[]> Clock::get_status() {
     float temp;
     struct tm rtcinfo;
 
+    struct tm alarm1_info = {};
+    struct tm alarm2_info = {};
+
     // C++ string formatting using streams is so ugly I cannot stand it,
     // on the other hand std::format is not there, so only option left
     // is to use old C API
-    // const int RES_SIZE = 1024;
-    // char res[RES_SIZE];
 
     if (ds3231_get_temp_float(&dev_, &temp) != ESP_OK) {
         char* err = nullptr;
@@ -248,44 +249,41 @@ std::unique_ptr<char[]> Clock::get_status() {
         return std::unique_ptr<char[]>(err);
     }
 
+    ds3231_get_alarm1(&dev_, &alarm1_info);
+    ds3231_get_alarm2(&dev_, &alarm2_info);
+
     //     7        6    5    4        3            2       1             0
-    // osc status | NA | NA | NA | sqw status | busy | alarm 2 set | alarm 1 set
+    // osc status | NA | NA | NA | sqw status | busy | alarm 2 expired | alarm 1 expired
     uint8_t status = 0;
     ds3231_get_status(&dev_, &status);
 
     //  7        6           5             4           3            2                    1 0
-    // osc en| sqw en | convert temp | sqw rate2 | sqw rate 1 | INT/SQW switch | alarm 2 int
+    // osc en| sqw en | convert temp | sqw rate2 | sqw rate 1 | INT/SQW switch | alarm 2/1 notify by interrupt
     // enable | alarm 1 int enable
     uint8_t ctrl;
     ds3231_get_control(&dev_, &ctrl);
 
-    // ESP_LOGD(TAG, "Status reg 0x%02X ctrl 0x%02X", status, ctrl);
-    // ESP_LOGD(TAG,
-    //          "Alarm1 expired: %s Alarm1 int enabled %s",
-    //          status & 0x1 ? "true" : "false",
-    //          ctrl & 0x1 ? "true" : "false");
-    // ESP_LOGD(TAG,
-    //          "Alarm2 expired: %s Alarm2 int enabled %s",
-    //          status & 0x2 ? "true" : "false",
-    //          ctrl & 0x2 ? "true" : "false");
-
-    // ESP_LOGD(pcTaskGetName(0), "%s, %.2f deg Cel", date_to_str(rtcinfo).c_str(), temp);
+    auto alarm1_set = ctrl & 0x1;
+    auto alarm2_set = ctrl & 0x2;
 
     char* res = nullptr;
     asprintf(&res,
              "CLOCK:\n"
-             "Status reg 0x%02X ctrl 0x%02X\n"
-             "Alarm1 expired: %s Alarm1 int enabled %s\n"
-             "Alarm2 expired: %s Alarm2 int enabled %s\n"
-             "%s, %.2f deg Cel\n",
-             status,
-             ctrl,
-             status & 0x1 ? "true" : "false",
-             ctrl & 0x1 ? "true" : "false",
-             status & 0x2 ? "true" : "false",
-             ctrl & 0x2 ? "true" : "false",
-             date_to_str(rtcinfo).c_str(),
-             temp);
+             "Time: %s, %.2f deg Cel\n"
+             "Alarm1 set %s %s\n"
+             "Alarm2 set %s %s\n"
+             "Status reg 0x%02X ctrl 0x%02X\n",
+             tm_to_str(rtcinfo, "%Y-%m-%d  %H:%M:%S").c_str(),
+             temp,
+
+             alarm1_set ? "true" : "false",
+             alarm1_set ? tm_to_str(alarm1_info).c_str() : "",
+
+             alarm2_set ? "true" : "false",
+             alarm2_set ? tm_to_str(alarm2_info).c_str() : "",
+
+             status, ctrl
+             );
 
     return std::unique_ptr<char[]>(res);
 }
@@ -327,5 +325,5 @@ void Clock::adjust_system_time() {
 
     timeinfo.tm_year += 1900;
 
-    ESP_LOGI(TAG, "Time sync: %s", date_to_str(timeinfo).c_str());
+    ESP_LOGI(TAG, "Time sync: %s", tm_to_str(timeinfo, "%Y-%m-%d  %H:%M:%S").c_str());
 }
