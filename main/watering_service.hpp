@@ -23,6 +23,9 @@ class Watering : public ServiceBase {
    static constexpr std::array<const char *, SECTION_SIZE> sections_names_ = {"Vegetables", "Terrace", "Flowers", "Grass"};
    static constexpr std::array<int, SECTION_SIZE> sections_time_ = {60 * 5, 61, 10*60, 20 * 60};
 
+   static constexpr std::array<bool, SECTION_SIZE> sections_mask_ = {false, false, true, false};
+
+
     // TODO: add pulldown resistor?
     static const int TURN_ON = 0;
     static const int TURN_OFF = 1;
@@ -35,7 +38,7 @@ class Watering : public ServiceBase {
 
     void set_the_alarm(struct tm alarm_tm);
     void turn_off_valves();
-    void switch_section(struct tm alarm_tm);
+    void set_section_alarm(struct tm alarm_tm);
     void on_moisture_monitor_expire();
     void switch_to_next_section();
 
@@ -44,6 +47,8 @@ class Watering : public ServiceBase {
     void handle_watering(const Message& msg);
 
     std::unique_ptr<char[]> get_status();
+
+    void set_next_section();
 
     int current_section_;
     bool watering_in_progress_;

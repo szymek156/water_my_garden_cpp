@@ -12,7 +12,7 @@ static const char* TAG = "Watering";
 // #define TESTING 1
 
 Watering::Watering(SockPtr clock, SockPtr moisture, SockPtr web)
-    : current_section_(0),
+    : current_section_(SECTION_SIZE),
       watering_in_progress_(false),
       clock_(std::move(clock)),
       moisture_(std::move(moisture)),
@@ -22,6 +22,8 @@ Watering::Watering(SockPtr clock, SockPtr moisture, SockPtr web)
     xQueueAddToSet(clock_->get_rx(), queues_);
     xQueueAddToSet(moisture_->get_rx(), queues_);
     xQueueAddToSet(web_->get_rx(), queues_);
+
+    set_next_section();
 }
 
 void Watering::run_service() {
@@ -108,13 +110,13 @@ void Watering::handle_watering(const Message& msg) {
             ESP_LOGI(
                 TAG, "Got moisture res for channel %u, moisture %f", msg.section_r, msg.moisture);
 
-            // TODO: define threshold
-            if (msg.moisture >= 0.5) {
-                // Feels wet enough
-                ESP_LOGI(TAG, "Section %d is wet enough!", current_section_);
+            // // TODO: define threshold
+            // if (msg.moisture >= 0.5) {
+            //     // Feels wet enough
+            //     ESP_LOGI(TAG, "Section %d is wet enough!", current_section_);
 
-                switch_to_next_section();
-            } else {
+            //     switch_to_next_section();
+            // } else {
                 // Keep watering
                 if (!watering_in_progress_) {
                     ESP_LOGI(TAG, "Watering section %u", current_section_);
@@ -138,15 +140,15 @@ void Watering::handle_watering(const Message& msg) {
 
                     localtime_r(&now, &alarm_tm);
 
-                    switch_section(alarm_tm);
+                    set_section_alarm(alarm_tm);
                     watering_in_progress_ = true;
                 }
 
-                if (!std::isnan(msg.moisture)) {
-                    // There is measurement available, monitor it during the watering process
-                    xTimerStart(moisture_monitor_, 0);
-                }
-            }
+                // if (!std::isnan(msg.moisture)) {
+                //     // There is measurement available, monitor it during the watering process
+                //     xTimerStart(moisture_monitor_, 0);
+                // }
+            // }
 
             return;
 
@@ -189,6 +191,16 @@ std::unique_ptr<char[]> Watering::get_status() {
         info.largest_free_block / 1024.0f);
 
     return std::unique_ptr<char[]>(res);
+}
+
+void Watering::set_next_section() {
+    if (current_section_ >= SECTION_SIZE) {
+        current_section_ = 0;
+    }
+
+    while (current_section_ < SECTION_SIZE && !sections_mask_[current_section_]) {
+        current_section_++;
+    }
 }
 
 void Watering::setup_gpio() {
@@ -241,7 +253,7 @@ void Watering::set_the_alarm(struct tm alarm_tm) {
     clock_->send(msg);
 }
 
-void Watering::switch_section(struct tm alarm_tm) {
+void Watering::set_section_alarm(struct tm alarm_tm) {
     alarm_tm.tm_year += 1900;
 
     auto msg = Message{};
@@ -279,7 +291,7 @@ void Watering::switch_to_next_section() {
     xTimerStop(moisture_monitor_, 0);
     turn_off_valves();
     watering_in_progress_ = false;
-    current_section_++;
+    set_next_section();
 
     if (current_section_ < SECTION_SIZE) {
         ESP_LOGI(TAG, "Switch to next section %d", current_section_);
@@ -293,7 +305,7 @@ void Watering::switch_to_next_section() {
     } else {
         ESP_LOGI(TAG, "Watering finished");
 
-        current_section_ = 0;
+        set_next_section();
 
 #if TESTING
         struct tm alarm_tm = {};
