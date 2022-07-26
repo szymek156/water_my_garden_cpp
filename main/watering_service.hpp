@@ -21,7 +21,7 @@ class Watering : public ServiceBase {
    static const int SECTION_SIZE = 4;
    static constexpr std::array<gpio_num_t, SECTION_SIZE> sections_ = {SECTION_VEGS, SECTION_TERRACE, SECTION_FLOWERS, SECTION_GRASS};
    static constexpr std::array<const char *, SECTION_SIZE> sections_names_ = {"Vegetables", "Terrace", "Flowers", "Grass"};
-   static constexpr std::array<int, SECTION_SIZE> sections_time_ = {60 * 5, 61, 10*60, 20 * 60};
+   static constexpr std::array<int, SECTION_SIZE> sections_time_ = {60 * 5, 61, 6*60, 20 * 60};
 
    static constexpr std::array<bool, SECTION_SIZE> sections_mask_ = {false, false, true, false};
 

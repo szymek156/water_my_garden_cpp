@@ -44,8 +44,8 @@ void Watering::run_service() {
     localtime_r(&now, &alarm_tm);
 #else
 //22 09
-    alarm_tm.tm_hour = 20;
-    alarm_tm.tm_min = 9;
+    alarm_tm.tm_hour = 18;
+    alarm_tm.tm_min = 30;
     alarm_tm.tm_sec = 00;
 #endif
 
@@ -196,11 +196,15 @@ std::unique_ptr<char[]> Watering::get_status() {
 void Watering::set_next_section() {
     if (current_section_ >= SECTION_SIZE) {
         current_section_ = 0;
+    } else {
+        current_section_++;
     }
 
     while (current_section_ < SECTION_SIZE && !sections_mask_[current_section_]) {
         current_section_++;
     }
+
+    ESP_LOGI(TAG, "Next section selected: %d", current_section_);
 }
 
 void Watering::setup_gpio() {
