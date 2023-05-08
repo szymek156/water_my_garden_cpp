@@ -14,16 +14,16 @@ class Watering : public ServiceBase {
 
  private:
     static const gpio_num_t SECTION_VEGS = (gpio_num_t)14;
-    static const gpio_num_t SECTION_TERRACE = (gpio_num_t)27;
-    static const gpio_num_t SECTION_FLOWERS = (gpio_num_t)26;
+    static const gpio_num_t SECTION_FLOWERS = (gpio_num_t)27;
+    static const gpio_num_t SECTION_TERRACE = (gpio_num_t)26;
     static const gpio_num_t SECTION_GRASS = (gpio_num_t)33;
 
    static const int SECTION_SIZE = 4;
-   static constexpr std::array<gpio_num_t, SECTION_SIZE> sections_ = {SECTION_VEGS, SECTION_TERRACE, SECTION_FLOWERS, SECTION_GRASS};
-   static constexpr std::array<const char *, SECTION_SIZE> sections_names_ = {"Vegetables", "Terrace", "Flowers", "Grass"};
-   static constexpr std::array<int, SECTION_SIZE> sections_time_ = {60 * 5, 61, 6*60, 20 * 60};
+   static constexpr std::array<gpio_num_t, SECTION_SIZE> sections_ = {SECTION_VEGS, SECTION_FLOWERS, SECTION_TERRACE, SECTION_GRASS};
+   static constexpr std::array<const char *, SECTION_SIZE> sections_names_ = {"Vegetables", "Flowers", "Terrace", "Grass"};
+   static constexpr std::array<int, SECTION_SIZE> sections_time_ = {60 * 5,  6*60, 61, 20 * 60};
 
-   static constexpr std::array<bool, SECTION_SIZE> sections_mask_ = {false, false, true, false};
+   static constexpr std::array<bool, SECTION_SIZE> sections_mask_ = {true, false, false, false};
 
 
     // TODO: add pulldown resistor?
