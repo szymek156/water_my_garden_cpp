@@ -47,6 +47,7 @@ class Watering : public ServiceBase {
     void handle_watering(const Message& msg);
 
     std::unique_ptr<char[]> get_status();
+     std::unique_ptr<char[]> get_configuration();
 
     void set_next_section();
 

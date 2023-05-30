@@ -74,6 +74,15 @@ void Watering::run_service() {
                         web_->send(resp);
                         break;
                     }
+                    case Message::Type::GetConfiguration: {
+                        ESP_LOGI(TAG, "Configuration request from the web");
+                        Message resp = {};
+                        resp.type = Message::Type::GetConfiguration;
+                        resp.status = get_configuration().release();
+
+                        web_->send(resp);
+                        break;
+                    }
                     default:
                         break;
                 }
@@ -189,6 +198,40 @@ std::unique_ptr<char[]> Watering::get_status() {
         info.total_free_bytes / 1024.0f,
         info.total_allocated_bytes / (float)total,
         info.largest_free_block / 1024.0f);
+
+    return std::unique_ptr<char[]>(res);
+}
+
+
+std::unique_ptr<char[]> Watering::get_configuration() {
+    char* res = nullptr;
+
+    char conf[256] = {};
+    int offset = 0;
+
+    for (int i = 0; i< SECTION_SIZE; i++) {
+        auto section_time = std::chrono::minutes(sections_time_[i]);
+        auto written = snprintf(conf + offset, 256 - offset, "%s: %lldm %llds %s, ",
+            sections_names_[i],
+            std::chrono::duration_cast<std::chrono::minutes>(section_time).count() % 60,
+            std::chrono::duration_cast<std::chrono::seconds>(section_time).count() % 60,
+            sections_mask_[i] ? "ENABLED": "DISABLED");
+
+        offset += written;
+    }
+
+    asprintf(
+        &res,
+        "CONFIGURATION\n"
+        "Current section %s (%d)\n"
+        "Watering in progress %s\n"
+        "Sections conf:\n"
+        "%s\n"
+        ,
+        sections_names_[current_section_], current_section_,
+        watering_in_progress_ ? "YEP" : "NOPE",
+        conf
+        );
 
     return std::unique_ptr<char[]>(res);
 }

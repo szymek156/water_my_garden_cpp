@@ -17,6 +17,7 @@ class WebServer {
     std::string get_clock_status();
     std::string get_moisture_status();
     std::string get_watering_status();
+    std::string get_watering_configuration();
 
  private:
     SockPtr clock_;

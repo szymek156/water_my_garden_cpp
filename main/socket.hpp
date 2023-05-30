@@ -20,7 +20,8 @@ struct Message {
         SetAlarm2,
         ClearAlarm1,
         ClearAlarm2,
-        Status
+        Status,
+        GetConfiguration
 
     } type;
 
@@ -47,6 +48,11 @@ struct Message {
         // Status
         struct {
             char* status;
+        };
+
+        // Get Configuration
+        struct {
+            char* configuration;
         };
     };
 };

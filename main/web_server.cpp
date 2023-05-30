@@ -43,6 +43,23 @@ static esp_err_t status_get_handler(httpd_req_t* req) {
     return ESP_OK;
 }
 
+/* configuration GET handler */
+static esp_err_t configuration_get_handler(httpd_req_t* req) {
+    /* Send response with custom headers and body set as the
+     * string passed in user context*/
+    auto* ctx = (WebServer*)req->user_ctx;
+
+    ESP_LOGD(TAG, "Get watering configuration...");
+    auto resp = ctx->get_watering_configuration();
+
+    ESP_LOGD(TAG, "get configuration response '%s'", resp.c_str());
+
+    // TODO: be a json someday
+    httpd_resp_send(req, resp.c_str(), HTTPD_RESP_USE_STRLEN);
+
+    return ESP_OK;
+}
+
 WebServer::WebServer(SockPtr clock, SockPtr moisture, SockPtr watering)
     : clock_(std::move(clock)),
       moisture_(std::move(moisture)),
@@ -108,6 +125,22 @@ std::string WebServer::get_watering_status() {
     return "Failed to get watering status";
 }
 
+std::string WebServer::get_watering_configuration() {
+    auto msg = Message{};
+    msg.type = Message::Type::GetConfiguration;
+
+    watering_->send(msg);
+
+    if (auto data = watering_->rcv(pdMS_TO_TICKS(500))) {
+        auto msg = *data;
+        auto guard = std::unique_ptr<char []>(msg.status);
+
+        return guard.get();
+    }
+
+    return "Failed to get watering configuration";
+}
+
 httpd_handle_t WebServer::start_webserver() {
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -116,12 +149,13 @@ httpd_handle_t WebServer::start_webserver() {
     httpd_uri_t version = {.uri = "/version",
                            .method = HTTP_GET,
                            .handler = version_get_handler,
-                           /* Let's pass response string in user
-                            * context to demonstrate it's usage */
                            .user_ctx = this};
 
     httpd_uri_t status = {
         .uri = "/status", .method = HTTP_GET, .handler = status_get_handler, .user_ctx = this};
+
+    httpd_uri_t get_configuration = {
+        .uri = "/configuration", .method = HTTP_GET, .handler = configuration_get_handler, .user_ctx = this};
 
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
@@ -130,6 +164,7 @@ httpd_handle_t WebServer::start_webserver() {
         ESP_LOGI(TAG, "Registering URI handlers");
         httpd_register_uri_handler(server, &version);
         httpd_register_uri_handler(server, &status);
+        httpd_register_uri_handler(server, &get_configuration);
 
         return server;
     }
