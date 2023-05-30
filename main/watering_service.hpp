@@ -21,9 +21,9 @@ class Watering : public ServiceBase {
    static const int SECTION_SIZE = 4;
    static constexpr std::array<gpio_num_t, SECTION_SIZE> sections_ = {SECTION_VEGS, SECTION_FLOWERS, SECTION_TERRACE, SECTION_GRASS};
    static constexpr std::array<const char *, SECTION_SIZE> sections_names_ = {"Vegetables", "Flowers", "Terrace", "Grass"};
-   static constexpr std::array<int, SECTION_SIZE> sections_time_ = {60 * 5,  6*60, 61, 20 * 60};
+   std::array<int, SECTION_SIZE> sections_time_ = {60 * 5,  6*60, 61, 20 * 60};
 
-   static constexpr std::array<bool, SECTION_SIZE> sections_mask_ = {true, false, false, false};
+   std::array<bool, SECTION_SIZE> sections_mask_ = {true, false, false, false};
 
 
     // TODO: add pulldown resistor?
@@ -47,7 +47,8 @@ class Watering : public ServiceBase {
     void handle_watering(const Message& msg);
 
     std::unique_ptr<char[]> get_status();
-     std::unique_ptr<char[]> get_configuration();
+    std::unique_ptr<char[]> get_configuration();
+    std::unique_ptr<char[]> set_configuration(Message msg);
 
     void set_next_section();
 

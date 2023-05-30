@@ -21,7 +21,8 @@ struct Message {
         ClearAlarm1,
         ClearAlarm2,
         Status,
-        GetConfiguration
+        GetConfiguration,
+        SetConfiguration
 
     } type;
 
@@ -53,6 +54,13 @@ struct Message {
         // Get Configuration
         struct {
             char* configuration;
+        };
+
+        // Set Configuration
+        struct {
+            char section_name[32];
+            bool enabled;
+            int duration_seconds;
         };
     };
 };

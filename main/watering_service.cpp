@@ -75,7 +75,7 @@ void Watering::run_service() {
                         break;
                     }
                     case Message::Type::GetConfiguration: {
-                        ESP_LOGI(TAG, "Configuration request from the web");
+                        ESP_LOGI(TAG, "Configuration get request from the web");
                         Message resp = {};
                         resp.type = Message::Type::GetConfiguration;
                         resp.status = get_configuration().release();
@@ -83,6 +83,17 @@ void Watering::run_service() {
                         web_->send(resp);
                         break;
                     }
+                    case Message::Type::SetConfiguration: {
+                        ESP_LOGI(TAG, "Configuration set request from the web");
+
+                        Message resp = {};
+                        resp.type = Message::Type::GetConfiguration;
+                        resp.status = set_configuration(msg).release();
+
+                        web_->send(resp);
+                        break;
+                    }
+
                     default:
                         break;
                 }
@@ -234,6 +245,37 @@ std::unique_ptr<char[]> Watering::get_configuration() {
         );
 
     return std::unique_ptr<char[]>(res);
+}
+
+std::unique_ptr<char[]> Watering::set_configuration(Message msg) {
+    // TODO: set alarm
+    // TODO: water now given section?
+    // TODO: store in NVM
+    int section_idx = 0;
+
+    for (; section_idx < SECTION_SIZE; section_idx++) {
+        if (sections_names_[section_idx] == msg.section_name) {
+            break;
+        }
+    }
+
+    if (section_idx == SECTION_SIZE) {
+        char *err = nullptr;
+
+        asprintf(
+            &err,
+            "Cannot find section named '%s'", msg.section_name
+        );
+
+        ESP_LOGE(TAG, "%s", err);
+
+        return std::unique_ptr<char[]>(err);
+    }
+
+    sections_mask_[section_idx] = msg.enabled;
+    sections_time_[section_idx] = msg.duration_seconds;
+
+    return get_configuration();
 }
 
 void Watering::set_next_section() {
