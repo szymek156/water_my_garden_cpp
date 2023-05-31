@@ -5,6 +5,7 @@
 #include <array>
 #include <memory>
 #include <freertos/timers.h>
+#include "moisture_service.hpp"
 
 class Watering : public ServiceBase {
  public:
@@ -19,11 +20,19 @@ class Watering : public ServiceBase {
     static const gpio_num_t SECTION_GRASS = (gpio_num_t)33;
 
    static const int SECTION_SIZE = 4;
+
    static constexpr std::array<gpio_num_t, SECTION_SIZE> sections_ = {SECTION_VEGS, SECTION_FLOWERS, SECTION_TERRACE, SECTION_GRASS};
    static constexpr std::array<const char *, SECTION_SIZE> sections_names_ = {"Vegetables", "Flowers", "Terrace", "Grass"};
    std::array<int, SECTION_SIZE> sections_time_ = {60 * 5,  6*60, 61, 20 * 60};
 
    std::array<bool, SECTION_SIZE> sections_mask_ = {true, false, false, false};
+
+   // each section can have different threshold
+   std::array<float, SECTION_SIZE> sections_wet_threshold_ = {
+      /*vegetables */ 0.6,
+      /* flowers */ 0.6,
+      /* terrace */ 0.6,
+      /* grass */ 0.6};
 
 
     // TODO: add pulldown resistor?

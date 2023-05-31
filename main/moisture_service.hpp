@@ -19,13 +19,15 @@ class Moisture : public ServiceBase {
     Moisture(SockPtr requestor, SockPtr web);
     void run_service();
 
+    // TODO: add fourth for terrace?
+    static const int CHANNELS_SIZE = 3;
  private:
     static const int DEFAULT_VREF = 1100;  // Use adc2_vref_to_gpio() to obtain a better estimate
     static const int NO_OF_SAMPLES = 64;   // Multisampling
 
-    static const int CHANNELS_SIZE = 3;
-    static constexpr adc1_channel_t CHANNELS[CHANNELS_SIZE] = {(adc1_channel_t)ADC_CHANNEL_6,
-                                                               (adc1_channel_t)ADC_CHANNEL_7,
+    static constexpr adc1_channel_t CHANNELS[CHANNELS_SIZE] = {
+                                                               (adc1_channel_t)ADC_CHANNEL_7 /* TBD but currently occupies VEGS*/,
+                                                               (adc1_channel_t)ADC_CHANNEL_6 /* FLOWERS*/,
                                                                (adc1_channel_t)ADC_CHANNEL_4};
 
     struct ChannelReading {

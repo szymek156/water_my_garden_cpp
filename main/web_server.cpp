@@ -180,6 +180,10 @@ std::string WebServer::set_watering_configuration(std::string payload) {
 
     cJSON *conf = cJSON_Parse(payload.c_str());
 
+    if (conf == nullptr) {
+        return "failed to parse JSON";
+    }
+
 	if (cJSON_GetObjectItem(conf, "section_name")) {
         strncpy(msg.section_name, cJSON_GetObjectItem(conf, "section_name")->valuestring, 32);
 	} else {
@@ -199,6 +203,13 @@ std::string WebServer::set_watering_configuration(std::string payload) {
 	} else {
         cJSON_Delete(conf);
         return "missing duration_seconds field";
+    }
+
+    if (cJSON_GetObjectItem(conf, "wet_threshold")) {
+		msg.wet_threshold = cJSON_GetObjectItem(conf,"wet_threshold")->valuedouble;
+	} else {
+        cJSON_Delete(conf);
+        return "missing wet_threshold field";
     }
 
     cJSON_Delete(conf);

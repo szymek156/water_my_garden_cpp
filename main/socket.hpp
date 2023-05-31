@@ -61,6 +61,7 @@ struct Message {
             char section_name[32];
             bool enabled;
             int duration_seconds;
+            float wet_threshold;
         };
     };
 };

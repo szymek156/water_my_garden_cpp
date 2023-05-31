@@ -129,15 +129,18 @@ void Watering::handle_watering(const Message& msg) {
         }
         case Message::Type::MoistureRes:
             ESP_LOGI(
-                TAG, "Got moisture res for channel %u, moisture %f", msg.section_r, msg.moisture);
+                TAG, "Got moisture res for channel %u, moisture %f, location %s",
+                msg.section_r, msg.moisture, sections_names_[msg.section_r]);
 
-            // // TODO: define threshold
-            // if (msg.moisture >= 0.5) {
-            //     // Feels wet enough
-            //     ESP_LOGI(TAG, "Section %d is wet enough!", current_section_);
 
-            //     switch_to_next_section();
-            // } else {
+            // TODO: define threshold
+            if (msg.moisture >= sections_wet_threshold_[msg.section_r]) {
+                // Feels wet enough
+                ESP_LOGI(TAG, "Section %d %s is wet enough!", current_section_,
+                        sections_names_[current_section_]);
+
+                switch_to_next_section();
+            } else {
                 // Keep watering
                 if (!watering_in_progress_) {
                     ESP_LOGI(TAG, "Watering section %u", current_section_);
@@ -169,7 +172,7 @@ void Watering::handle_watering(const Message& msg) {
                 //     // There is measurement available, monitor it during the watering process
                 //     xTimerStart(moisture_monitor_, 0);
                 // }
-            // }
+            }
 
             return;
 
@@ -223,10 +226,11 @@ std::unique_ptr<char[]> Watering::get_configuration() {
 
     for (int i = 0; i< SECTION_SIZE; i++) {
         auto section_time = std::chrono::seconds(sections_time_[i]);
-        auto written = snprintf(conf + offset, 256 - offset, "%s: %lldm %llds %s, \n",
+        auto written = snprintf(conf + offset, 256 - offset, "%s: %lldm %llds, threshold %f%% %s, \n",
             sections_names_[i],
             std::chrono::duration_cast<std::chrono::minutes>(section_time).count() % 60,
             std::chrono::duration_cast<std::chrono::seconds>(section_time).count() % 60,
+            sections_wet_threshold_[i],
             sections_mask_[i] ? "ENABLED": "DISABLED");
 
         offset += written;
@@ -275,6 +279,7 @@ std::unique_ptr<char[]> Watering::set_configuration(Message msg) {
 
     sections_mask_[section_idx] = msg.enabled;
     sections_time_[section_idx] = msg.duration_seconds;
+    sections_wet_threshold_[section_idx] = msg.wet_threshold;
 
     return get_configuration();
 }
