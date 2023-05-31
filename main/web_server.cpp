@@ -242,6 +242,7 @@ httpd_handle_t WebServer::start_webserver() {
         httpd_register_uri_handler(server, &version);
         httpd_register_uri_handler(server, &status);
         httpd_register_uri_handler(server, &get_configuration);
+        httpd_register_uri_handler(server, &set_configuration);
 
         return server;
     }

@@ -5,6 +5,7 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <string.h>
 
 static const char* TAG = "Watering";
 
@@ -221,8 +222,8 @@ std::unique_ptr<char[]> Watering::get_configuration() {
     int offset = 0;
 
     for (int i = 0; i< SECTION_SIZE; i++) {
-        auto section_time = std::chrono::minutes(sections_time_[i]);
-        auto written = snprintf(conf + offset, 256 - offset, "%s: %lldm %llds %s, ",
+        auto section_time = std::chrono::seconds(sections_time_[i]);
+        auto written = snprintf(conf + offset, 256 - offset, "%s: %lldm %llds %s, \n",
             sections_names_[i],
             std::chrono::duration_cast<std::chrono::minutes>(section_time).count() % 60,
             std::chrono::duration_cast<std::chrono::seconds>(section_time).count() % 60,
@@ -254,7 +255,7 @@ std::unique_ptr<char[]> Watering::set_configuration(Message msg) {
     int section_idx = 0;
 
     for (; section_idx < SECTION_SIZE; section_idx++) {
-        if (sections_names_[section_idx] == msg.section_name) {
+        if ( strncmp(sections_names_[section_idx], msg.section_name, 32) == 0 ) {
             break;
         }
     }
